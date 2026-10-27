@@ -1,38 +1,26 @@
 [
   {
-    "id": "3c4ce928d484b7ee",
+    "id": "e3e367227d20fc75",
     "type": "tab",
-    "z": "3c4ce928d484b7ee",
-    "name": "",
-    "x": 0,
-    "y": 0,
-    "wires": [],
-    "label": "VESC Express CAN 29 – LispBM Poti + WiFi",
+    "label": "VESC CAN 29 – PID, Hard-STOP, Poti/WiFi-Status",
     "disabled": false,
-    "info": "Fahrsteuerung ausschließlich via LispBM COMM_CUSTOM_APP_DATA (36). CAN-ID 29. STOP sendet Sollwert 0. Brems-/Reku-CAN-Kommandos sind nicht unterstützt und werden NICHT mehr gesendet."
+    "info": "Fahrt: -100..100 % Drehzahlsollwert ueber LispBM, CAN-ID29.\nSTOP (HARD): expliziter LispBM-Befehl; Motorloop bremst mit dem maximal konfigurierten Bremsstrom (set-brake-rel1.0), Firmwarelimits bleiben aktiv.\nVoraussetzung: beigelegtes LispBM/tronic250r.lisp auf CAN29 installieren. Alter Empfaenger kennt Hard-STOP und Quellenrueckmeldung nicht.\nReiner SOG-PID mit Ausgang0..100 %, keine zweite Regelstufe.\nPoti/WiFi-Quelle wird vom Empfaenger nach Anwendung zurueckgemeldet. PID-Folgebefehle koennen eine Potiuebernahme nicht ueberschreiben.\nStandard-Signal-K-state und transmission.gear plus aussagekraeftige Custom-Statuspfade. Motorbewegung, Anforderung und angewandter Modus bleiben unterscheidbar.\nRekuperations-, Brake- und Handbrake-Bedienelemente sowie deren Konfiguration sind entfernt."
   },
   {
-    "id": "8c21039845b37b81",
+    "id": "14d03a7ff08dd7a1",
     "type": "comment",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "Kontextstruktur",
+    "info": "flow.vesc: config,status,telemetry,memory. file: nur config.",
     "x": 360,
     "y": 40,
-    "wires": [],
-    "info": "flow.vesc: config,status,telemetry,memory. file: nur config."
+    "wires": []
   },
   {
-    "id": "15ff9b19f9d103df",
+    "id": "41d8599f16cc87a4",
     "type": "inject",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "initialize VESC context",
-    "x": 150,
-    "y": 100,
-    "wires": [
-      [
-        "d4db0b329a8815c1"
-      ]
-    ],
     "props": [
       {
         "p": "payload"
@@ -44,213 +32,114 @@
     "onceDelay": "0.5",
     "topic": "",
     "payload": "",
-    "payloadType": "date"
-  },
-  {
-    "id": "d4db0b329a8815c1",
-    "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "initialize flow.vesc + UI",
-    "x": 410,
+    "payloadType": "date",
+    "x": 150,
     "y": 100,
     "wires": [
       [
-        "7c541ae7deefd9b2"
-      ],
-      [
-        "75dcd13951fb1586"
-      ],
-      [
-        "a633d9f63a49fbd8"
-      ],
-      [
-        "bcbbe0bd9859dbc7"
+        "3b7c8cf2632cafb3"
       ]
-    ],
-    "func": "const DEFAULT={config:{engineOn:false,recuperate:{active:false,current:10},handbrake:{current:10}},status:{driveMode:\"unknown\",available:false,lastRxMs:0,erpm:0,recuperateAutoAllowed:false,recuperateEffective:false,recuperateReason:\"not evaluated\",batterySoc:null,batteryAgeMs:null},telemetry:{},memory:{}};\nfunction obj(v){return v&&typeof v===\"object\"&&!Array.isArray(v)}\nfunction merge(dst,src){for(const k of Object.keys(src)){if(obj(src[k])){if(!obj(dst[k]))dst[k]={};merge(dst[k],src[k])}else if(dst[k]===undefined)dst[k]=src[k]}return dst}\nlet v=flow.get(\"vesc\",\"memory\");if(!obj(v))v={};merge(v,DEFAULT);\nconst old=flow.get(\"vesc\",\"file\");if(obj(old?.config)){let c=old.config;if(typeof c.engineOn===\"boolean\")v.config.engineOn=c.engineOn;if(typeof c.recuperate?.active===\"boolean\")v.config.recuperate.active=c.recuperate.active;for(const [target,source] of [[v.config.recuperate,c.recuperate],[v.config.handbrake,c.handbrake]]){let n=Number(source?.current);if(Number.isFinite(n)&&n>=0&&n<=100)target.current=n}}\nflow.set(\"vesc\",v,\"memory\");flow.set(\"vesc\",{config:v.config},\"file\");return [{topic:\"engine_on\",payload:v.config.engineOn},{topic:\"vesc_recuperate\",payload:v.config.recuperate.active},{topic:\"vesc_brake_current\",payload:v.config.recuperate.current},{topic:\"vesc_handbrake_current\",payload:v.config.handbrake.current}];",
-    "outputs": 4,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": []
+    ]
   },
   {
-    "id": "7c541ae7deefd9b2",
-    "type": "ui_switch",
-    "z": "3c4ce928d484b7ee",
-    "name": "",
-    "x": 170,
-    "y": 640,
-    "wires": [
-      [
-        "7b49b12395d5355f"
-      ]
-    ],
-    "group": "ui_group_motor",
-    "order": 1,
-    "width": 0,
-    "height": 0,
-    "passthru": false,
-    "topic": "engine_on",
-    "topicType": "str",
-    "label": "ein/aus",
-    "tooltip": "",
-    "decouple": "false",
-    "style": "",
-    "onvalue": "true",
-    "onvalueType": "bool",
-    "onicon": "",
-    "oncolor": "",
-    "offvalue": "false",
-    "offvalueType": "bool",
-    "officon": "",
-    "offcolor": "",
-    "animate": false,
-    "className": ""
-  },
-  {
-    "id": "75dcd13951fb1586",
-    "type": "ui_switch",
-    "z": "3c4ce928d484b7ee",
-    "name": "rekuperieren",
-    "x": 170,
-    "y": 700,
-    "wires": [
-      [
-        "7b49b12395d5355f"
-      ]
-    ],
-    "group": "ui_group_motor",
-    "order": 2,
-    "width": 0,
-    "height": 0,
-    "passthru": false,
-    "topic": "vesc_recuperate",
-    "topicType": "str",
-    "label": "rekuperieren",
-    "tooltip": "",
-    "decouple": "false",
-    "style": "",
-    "onvalue": "true",
-    "onvalueType": "bool",
-    "onicon": "",
-    "oncolor": "",
-    "offvalue": "false",
-    "offvalueType": "bool",
-    "officon": "",
-    "offcolor": "",
-    "animate": false,
-    "className": ""
-  },
-  {
-    "id": "a633d9f63a49fbd8",
-    "type": "ui_numeric",
-    "z": "3c4ce928d484b7ee",
-    "name": "brake current",
-    "x": 170,
-    "y": 760,
-    "wires": [
-      [
-        "7b49b12395d5355f"
-      ]
-    ],
-    "group": "ui_group_motor",
-    "order": 7,
-    "width": 0,
-    "height": 0,
-    "passthru": false,
-    "topic": "vesc_brake_current",
-    "topicType": "str",
-    "label": "brake current",
-    "tooltip": "",
-    "wrap": false,
-    "format": "{{value}} A",
-    "min": 0,
-    "max": 100,
-    "step": 1,
-    "className": ""
-  },
-  {
-    "id": "bcbbe0bd9859dbc7",
-    "type": "ui_numeric",
-    "z": "3c4ce928d484b7ee",
-    "name": "handbrake current",
-    "x": 170,
-    "y": 820,
-    "wires": [
-      [
-        "7b49b12395d5355f"
-      ]
-    ],
-    "group": "ui_group_motor",
-    "order": 8,
-    "width": 0,
-    "height": 0,
-    "passthru": false,
-    "topic": "vesc_handbrake_current",
-    "topicType": "str",
-    "label": "handbrake current",
-    "tooltip": "",
-    "wrap": false,
-    "format": "{{value}} A",
-    "min": 0,
-    "max": 100,
-    "step": 1,
-    "className": ""
-  },
-  {
-    "id": "7b49b12395d5355f",
+    "id": "3b7c8cf2632cafb3",
     "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "update flow.vesc.config",
-    "x": 440,
-    "y": 700,
-    "wires": [
-      [
-        "f0369874c4221068"
-      ]
-    ],
-    "func": "let v=flow.get(\"vesc\",\"memory\")||{};v.config??={};v.config.recuperate??={};v.config.handbrake??={};switch(msg.topic){case \"engine_on\":v.config.engineOn=msg.payload===true;break;case \"vesc_recuperate\":v.config.recuperate.active=msg.payload===true;break;case \"vesc_brake_current\":case \"vesc_handbrake_current\":{const n=Number(msg.payload);if(!Number.isFinite(n)||n<0||n>100){node.error(\"Ungültiger Strom\",msg);return null;}if(msg.topic===\"vesc_brake_current\")v.config.recuperate.current=n;else v.config.handbrake.current=n;break;}default:return null}flow.set(\"vesc\",v,\"memory\");flow.set(\"vesc\",{config:v.config},\"file\");return msg;",
+    "z": "e3e367227d20fc75",
+    "name": "initialize flow.vesc + UI",
+    "func": "const previous = flow.get(\"vesc\", \"memory\") || {};\nconst saved = flow.get(\"vesc\", \"file\");\nconst engineOn = typeof saved?.config?.engineOn === \"boolean\"\n    ? saved.config.engineOn : previous.config?.engineOn === true;\nconst status = previous.status || {};\nfor (const key of [\"driveMode\", \"recuperateAutoAllowed\", \"recuperateEffective\", \"recuperateReason\", \"batterySoc\", \"batteryAgeMs\"])\n    delete status[key];\ndelete status.control;\nconst v = {config: {engineOn}, status: {...status, available: false, lastRxMs: 0, erpm: 0},\n    telemetry: previous.telemetry || {}, memory: previous.memory || {}};\nflow.set(\"vesc\", v, \"memory\");\nflow.set(\"vesc\", {config: v.config}, \"file\");\nreturn {topic: \"engine_on\", payload: engineOn};\n",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
-    "libs": []
+    "libs": [],
+    "x": 410,
+    "y": 100,
+    "wires": [
+      [
+        "2640a0460d6bdc21"
+      ]
+    ]
   },
   {
-    "id": "f0369874c4221068",
+    "id": "2640a0460d6bdc21",
+    "type": "ui_switch",
+    "z": "e3e367227d20fc75",
+    "name": "",
+    "label": "ein/aus",
+    "tooltip": "",
+    "group": "ui_group_motor",
+    "order": 1,
+    "width": 0,
+    "height": 0,
+    "passthru": false,
+    "decouple": "false",
+    "topic": "engine_on",
+    "topicType": "str",
+    "style": "",
+    "onvalue": "true",
+    "onvalueType": "bool",
+    "onicon": "",
+    "oncolor": "",
+    "offvalue": "false",
+    "offvalueType": "bool",
+    "officon": "",
+    "offcolor": "",
+    "animate": false,
+    "className": "",
+    "x": 170,
+    "y": 640,
+    "wires": [
+      [
+        "e9203c0993ec89ec"
+      ]
+    ]
+  },
+  {
+    "id": "e9203c0993ec89ec",
     "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "only engine off -> stop",
-    "x": 680,
+    "z": "e3e367227d20fc75",
+    "name": "update flow.vesc.config",
+    "func": "if (msg.topic !== \"engine_on\" || typeof msg.payload !== \"boolean\") return null;\nconst v = flow.get(\"vesc\", \"memory\") || {};\nv.config = {engineOn: msg.payload};\nif (!msg.payload) {\n    const s = flow.get(\"vescCruise\", \"memory\");\n    if (s) {\n        s.enabled = false;\n        s.serial += 1;\n        s.integral = 0;\n        s.reason = \"Motor ausgeschaltet\";\n        flow.set(\"vescCruise\", s, \"memory\");\n    }\n}\nflow.set(\"vesc\", v, \"memory\");\nflow.set(\"vesc\", {config: v.config}, \"file\");\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 440,
     "y": 700,
     "wires": [
       [
-        "bf6f87c5721cd6aa"
+        "d58b9c7aacfcd35d"
       ]
-    ],
+    ]
+  },
+  {
+    "id": "d58b9c7aacfcd35d",
+    "type": "function",
+    "z": "e3e367227d20fc75",
+    "name": "only engine off -> stop",
     "func": "if(msg.topic===\"engine_on\" && msg.payload===false)return msg;return null;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
-    "libs": []
-  },
-  {
-    "id": "bf6f87c5721cd6aa",
-    "type": "change",
-    "z": "3c4ce928d484b7ee",
-    "name": "stop payload",
-    "x": 870,
+    "libs": [],
+    "x": 680,
     "y": 700,
     "wires": [
       [
-        "da8602385249c7b3"
+        "d1c6f47274ac21f4"
       ]
-    ],
+    ]
+  },
+  {
+    "id": "d1c6f47274ac21f4",
+    "type": "change",
+    "z": "e3e367227d20fc75",
+    "name": "stop payload",
     "rules": [
       {
         "t": "set",
@@ -258,32 +147,39 @@
         "pt": "msg",
         "to": "0",
         "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "cruise_engine_off",
+        "tot": "str"
       }
     ],
     "action": "",
     "property": "",
     "from": "",
     "to": "",
-    "reg": false
-  },
-  {
-    "id": "09dcf4bdd5215332",
-    "type": "ui_button",
-    "z": "3c4ce928d484b7ee",
-    "name": "",
-    "x": 150,
-    "y": 550,
+    "reg": false,
+    "x": 870,
+    "y": 700,
     "wires": [
       [
-        "b8fa78a615d88791"
+        "6d560d867c410001"
       ]
-    ],
+    ]
+  },
+  {
+    "id": "5536af253f412827",
+    "type": "ui_button",
+    "z": "e3e367227d20fc75",
+    "name": "STOP (HARD)",
     "group": "ui_group_motor",
     "order": 4,
     "width": 5,
     "height": 9,
     "passthru": false,
-    "label": "STOP",
+    "label": "STOP (HARD)",
     "tooltip": "",
     "color": "",
     "bgcolor": "",
@@ -291,21 +187,24 @@
     "icon": "",
     "payload": "0",
     "payloadType": "json",
-    "topic": "topic",
-    "topicType": "msg"
-  },
-  {
-    "id": "b8fa78a615d88791",
-    "type": "ui_slider",
-    "z": "3c4ce928d484b7ee",
-    "name": "",
-    "x": 330,
+    "topic": "cruise_stop",
+    "topicType": "str",
+    "x": 150,
     "y": 550,
     "wires": [
       [
-        "5eafd0bd9f0957c5"
+        "4ade8ad91ac50ceb",
+        "6d560d867c410001"
       ]
-    ],
+    ]
+  },
+  {
+    "id": "4ade8ad91ac50ceb",
+    "type": "ui_slider",
+    "z": "e3e367227d20fc75",
+    "name": "",
+    "label": "Fahrt (%)",
+    "tooltip": "",
     "group": "ui_group_motor",
     "order": 3,
     "width": 4,
@@ -318,112 +217,109 @@
     "max": "100",
     "step": "0.1",
     "className": "",
-    "label": "Fahrt (%)",
-    "tooltip": ""
+    "x": 330,
+    "y": 550,
+    "wires": [
+      [
+        "317e1a3a7732d2e9"
+      ]
+    ]
   },
   {
-    "id": "5eafd0bd9f0957c5",
+    "id": "317e1a3a7732d2e9",
     "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "engineOn prüfen (memory store)",
+    "z": "e3e367227d20fc75",
+    "name": "Handregler / STOP -> PID-Steuerung",
+    "func": "if (msg._cruiseUi === true) return null;\nmsg.topic = \"cruise_manual\";\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
     "x": 580,
     "y": 550,
     "wires": [
       [
-        "da8602385249c7b3"
+        "6d560d867c410001"
       ]
-    ],
-    "func": "const v=flow.get(\"vesc\",\"memory\");if(v?.config?.engineOn===true)return msg;node.status({fill:\"yellow\",shape:\"ring\",text:\"Motor ausgeschaltet\"});return null;",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": []
-  },
-  {
-    "id": "da8602385249c7b3",
-    "type": "link out",
-    "z": "3c4ce928d484b7ee",
-    "name": "link out to VESC",
-    "x": 785,
-    "y": 550,
-    "wires": [],
-    "mode": "link",
-    "links": [
-      "847fde61fc8a652c"
     ]
   },
   {
-    "id": "847fde61fc8a652c",
+    "id": "54c6f7bb5b0e0908",
+    "type": "link out",
+    "z": "e3e367227d20fc75",
+    "name": "link out to VESC",
+    "mode": "link",
+    "links": [
+      "d7f81eb202e1d0a1"
+    ],
+    "x": 785,
+    "y": 550,
+    "wires": []
+  },
+  {
+    "id": "d7f81eb202e1d0a1",
     "type": "link in",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "To VESC",
+    "links": [
+      "54c6f7bb5b0e0908"
+    ],
     "x": 365,
     "y": 180,
     "wires": [
       [
-        "1b8c3c77323b1baf"
+        "3d6d755ef82aefb8"
       ]
-    ],
-    "links": [
-      "da8602385249c7b3"
     ]
   },
   {
-    "id": "1b8c3c77323b1baf",
+    "id": "3d6d755ef82aefb8",
     "type": "function",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "build commands (LispBM)",
+    "func": "const s = flow.get(\"vescCruise\", \"memory\");\nif (msg._vescSession !== undefined) {\n    if (!s || msg._vescSession !== s.session || msg._vescSerial !== s.serial) return null;\n    if (msg._vescCruise === true && (!s.enabled || flow.get(\"vesc\", \"memory\")?.config?.engineOn !== true)) return null;\n}\nconst p = msg.payload;\nif (typeof p !== \"number\" || !Number.isFinite(p) || p < -100 || p > 100) {\n    node.error(\"Ungueltiger Drehzahlsollwert\", msg);\n    return null;\n}\nmsg.payload = {\n    cmd: msg._vescHardStop === true ? \"lisp_hard_stop\" : \"lisp_percent\",\n    percent: msg._vescHardStop === true ? 0 : p,\n    acquire: msg._vescAcquire !== false,\n    source: msg._vescCruise === true ? \"cruise\" : \"manual\"\n};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
     "x": 560,
     "y": 180,
     "wires": [
       [
-        "7845dede87082cbe"
+        "68e1f123023253f2"
       ]
-    ],
-    "func": "// Motor-Sollwert: -100..+100 Prozent -> LispBM int16 -1000..+1000.\n// LispBM auf dem Tronic setzt daraus +/-75000 ERPM um.\n// STOP = 0 Prozent; aktive Bremse/Reku per CAN wird bewusst NICHT behauptet.\nconst p=Number(msg.payload);\nif(!Number.isFinite(p)||p<-100||p>100){node.error(\"Sliderwert außerhalb -100..100%\",msg);return null;}\nmsg.payload={cmd:\"lisp_percent\",percent:p};\nnode.status({fill:p===0?\"grey\":\"green\",shape:\"dot\",text:`LispBM ${p.toFixed(1)} %`});\nreturn msg;",
+    ]
+  },
+  {
+    "id": "68e1f123023253f2",
+    "type": "function",
+    "z": "e3e367227d20fc75",
+    "name": "VESC CAN29: Fahrt / Hard-STOP / PID-Folge",
+    "func": "const s = flow.get(\"vescCruise\", \"memory\");\nif (msg._vescSession !== undefined) {\n    if (!s || msg._vescSession !== s.session || msg._vescSerial !== s.serial) return null;\n    if (msg._vescCruise === true && (!s.enabled || flow.get(\"vesc\", \"memory\")?.config?.engineOn !== true)) return null;\n}\nconst x = msg.payload || {};\nif (![\"lisp_percent\", \"lisp_hard_stop\"].includes(x.cmd) ||\n    typeof x.percent !== \"number\" || !Number.isFinite(x.percent) || x.percent < -100 || x.percent > 100) return null;\nconst hard = x.cmd === \"lisp_hard_stop\";\nconst percent = hard ? 0 : x.percent;\nconst value = Math.round(percent * 10);\nlet data;\nif (x.acquire === false) {\n    data = Buffer.alloc(4);\n    data[0] = 4; // Fortsetzen nur wenn WiFi die Quelle weiterhin besitzt.\n    data[1] = hard ? 1 : 0;\n    data.writeInt16BE(value, 2);\n} else if (hard) {\n    data = Buffer.from([2]);\n} else {\n    data = Buffer.alloc(3);\n    data[0] = 1;\n    data.writeInt16BE(value, 1);\n}\nconst p = Buffer.from([34, 29, 36, ...data]);\nlet crc = 0;\nfor (const b of p) {\n    crc ^= b << 8;\n    for (let i = 0; i < 8; i++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 65535 : (crc << 1) & 65535;\n}\nmsg.payload = Buffer.from([2, p.length, ...p, crc >> 8, crc & 255, 3]);\n// Angefordert, nicht als Wirkung am Motor bestaetigt. Rueckmeldung kommt separat.\nflow.set(\"vescLastCommand\", {percent, mode: hard ? \"hardStop\" : \"percent\", timestampMs: Date.now(), source: x.source}, \"memory\");\nnode.status({fill: hard ? \"red\" : \"green\", shape: \"dot\", text: hard ? \"Hard-STOP angefordert\" : `${percent.toFixed(1)} % angefordert`});\nreturn msg;\n",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
-    "libs": []
-  },
-  {
-    "id": "7845dede87082cbe",
-    "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "VESC CAN Command Builder – LispBM",
+    "libs": [],
     "x": 760,
     "y": 220,
     "wires": [
       [
-        "f621819037708003",
-        "04512931fdc88df8"
+        "a27d1227521c0a37",
+        "e88c26dd5e4b9aa9"
       ]
-    ],
-    "func": "// VESC 6.02: COMM_FORWARD_CAN(34), CAN-ID 29,\n// COMM_CUSTOM_APP_DATA(36), payload [1, signed int16 big-endian].\nconst CAN=29;\nfunction crc16(b){let c=0;for(const x of b){c^=x<<8;for(let i=0;i<8;i++)c=(c&0x8000)?((c<<1)^0x1021)&65535:(c<<1)&65535;}return c;}\nconst x=msg.payload||{};\nif(x.cmd!==\"lisp_percent\"||!Number.isFinite(x.percent)){node.error(\"Ungültiger LispBM Sollwert\",msg);return null;}\nconst value=Math.round(Math.max(-100,Math.min(100,x.percent))*10);\nconst p=Buffer.alloc(6);p[0]=34;p[1]=CAN;p[2]=36;p[3]=1;p.writeInt16BE(value,4);\nconst crc=crc16(p);\nmsg.payload=Buffer.from([2,p.length,...p,crc>>8,crc&255,3]);\nreturn msg;",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": []
+    ]
   },
   {
-    "id": "04512931fdc88df8",
+    "id": "e88c26dd5e4b9aa9",
     "type": "tcp request",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "TCP VESC Express",
-    "x": 1010,
-    "y": 240,
-    "wires": [
-      [
-        "2b2f25fb4ecbeae3",
-        "30c4e215d1b2a4c8"
-      ]
-    ],
     "server": "192.168.0.195",
     "port": "65102",
     "out": "sit",
@@ -431,18 +327,21 @@
     "splitc": "0",
     "newline": "",
     "trim": false,
-    "tls": ""
+    "tls": "",
+    "x": 1010,
+    "y": 240,
+    "wires": [
+      [
+        "d7c31336a667e50b",
+        "2884395f386fdaf7"
+      ]
+    ]
   },
   {
-    "id": "f621819037708003",
+    "id": "a27d1227521c0a37",
     "type": "trigger",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "VESC TCP keepalive 300 ms",
-    "x": 1060,
-    "y": 100,
-    "wires": [
-      []
-    ],
     "op1": "",
     "op2": "0",
     "op1type": "pay",
@@ -454,18 +353,18 @@
     "reset": "",
     "bytopic": "all",
     "topic": "topic",
-    "outputs": 1
-  },
-  {
-    "id": "d5bc3f1be444efcf",
-    "type": "inject",
-    "z": "3c4ce928d484b7ee",
-    "name": "request status",
-    "x": 100,
-    "y": 300,
+    "outputs": 1,
+    "x": 1060,
+    "y": 100,
     "wires": [
       []
-    ],
+    ]
+  },
+  {
+    "id": "49983bcc39623add",
+    "type": "inject",
+    "z": "e3e367227d20fc75",
+    "name": "request status",
     "props": [
       {
         "p": "topic",
@@ -476,41 +375,41 @@
     "crontab": "",
     "once": false,
     "onceDelay": 0.1,
-    "topic": "request"
-  },
-  {
-    "id": "57990947d1463fd4",
-    "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "request status message",
-    "x": 350,
+    "topic": "request",
+    "x": 100,
     "y": 300,
     "wires": [
       [
-        "04512931fdc88df8",
-        "c95093d4bd84ad7d"
+        "41bc7523b271d968"
       ]
-    ],
-    "func": "const p=Buffer.from([34,29,4]);let c=0;for(const x of p){c^=x<<8;for(let i=0;i<8;i++)c=(c&0x8000)?((c<<1)^0x1021)&65535:(c<<1)&65535;}msg.payload=Buffer.from([2,p.length,...p,c>>8,c&255,3]);return msg;",
+    ]
+  },
+  {
+    "id": "41bc7523b271d968",
+    "type": "function",
+    "z": "e3e367227d20fc75",
+    "name": "request status message",
+    "func": "function frame(p) {\n    let crc = 0;\n    for (const b of p) {\n        crc ^= b << 8;\n        for (let i = 0; i < 8; i++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 65535 : (crc << 1) & 65535;\n    }\n    return Buffer.from([2, p.length, ...p, crc >> 8, crc & 255, 3]);\n}\nreturn [[\n    {topic: \"request\", payload: frame([34, 29, 4])},\n    {topic: \"control_request\", payload: frame([34, 29, 36, 3])}\n]];\n",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
-    "libs": []
-  },
-  {
-    "id": "29d533ca90b8051c",
-    "type": "inject",
-    "z": "3c4ce928d484b7ee",
-    "name": "watchdog",
-    "x": 1010,
-    "y": 200,
+    "libs": [],
+    "x": 350,
+    "y": 300,
     "wires": [
       [
-        "2b2f25fb4ecbeae3"
+        "e88c26dd5e4b9aa9",
+        "9ae0bd926c24f996"
       ]
-    ],
+    ]
+  },
+  {
+    "id": "a7feb52209ec9b98",
+    "type": "inject",
+    "z": "e3e367227d20fc75",
+    "name": "watchdog",
     "props": [
       {
         "p": "topic",
@@ -521,92 +420,94 @@
     "crontab": "",
     "once": false,
     "onceDelay": 0.1,
-    "topic": "watchdog"
+    "topic": "watchdog",
+    "x": 1010,
+    "y": 200,
+    "wires": [
+      [
+        "d7c31336a667e50b"
+      ]
+    ]
   },
   {
-    "id": "2b2f25fb4ecbeae3",
+    "id": "d7c31336a667e50b",
     "type": "function",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "VESC CAN Packet Parser",
+    "func": "const now = Date.now();\nlet rx = context.get(\"rx\") || Buffer.alloc(0);\nlet lastTelemetry = context.get(\"lastTelemetry\") || 0;\nif (msg.topic === \"watchdog\") return {payload: {available: lastTelemetry > 0 && now - lastTelemetry <= 2000, timestamp: now}};\nif (!Buffer.isBuffer(msg.payload)) {\n    if (!Array.isArray(msg.payload)) return null;\n    msg.payload = Buffer.from(msg.payload);\n}\nrx = Buffer.concat([rx, msg.payload]);\nif (rx.length > 8192) rx = rx.subarray(rx.length - 8192);\nfunction crc16(p) {\n    let crc = 0;\n    for (const b of p) {\n        crc ^= b << 8;\n        for (let i = 0; i < 8; i++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 65535 : (crc << 1) & 65535;\n    }\n    return crc;\n}\nfunction parse(p) {\n    if (p[0] === 34) return p.length >= 3 && p[1] === 29 ? parse(p.subarray(2)) : null;\n    if (p[0] === 36) {\n        if (p.length !== 7 || p[1] !== 129 || p[2] !== 1 || p[3] > 1 || p[4] > 1) return null;\n        const value = p.readInt16BE(5);\n        if (value < -1000 || value > 1000 || (p[4] === 1 && (p[3] !== 1 || value !== 0))) return null;\n        return {control: {protocolVersion: 1, source: p[3], mode: p[4], percent: value / 10, lastRxMs: now}};\n    }\n    // GET_VALUES: vollstaendig bis Fault-Code; Teilantworten sind kein Lebenszeichen.\n    if (p[0] !== 4 || p.length < 54) return null;\n    let i = 1;\n    const q = scale => {const x = p.readInt16BE(i) / scale; i += 2; return x;};\n    const w = scale => {const x = p.readInt32BE(i) / scale; i += 4; return x;};\n    const data = {available: true, temp_fet: q(10), temp_motor: q(10),\n        avg_motor_current: w(100), avg_input_current: w(100), avg_id: w(100), avg_iq: w(100),\n        duty_cycle_now: q(1000), rpm: w(1), v_in: q(10),\n        amp_hours: w(10000), amp_hours_charged: w(10000), watt_hours: w(10000), watt_hours_charged: w(10000),\n        tachometer: w(1), tachometer_abs: w(1), mc_fault_code: p.readUInt8(i), timestamp: now};\n    lastTelemetry = now;\n    context.set(\"lastTelemetry\", now);\n    return data;\n}\nconst out = [];\nwhile (rx.length >= 5) {\n    const start = rx.indexOf(2);\n    if (start < 0) {rx = Buffer.alloc(0); break;}\n    if (start > 0) rx = rx.subarray(start);\n    if (rx.length < 5) break;\n    const size = rx[1];\n    const total = size + 5;\n    if (rx.length < total) break;\n    const p = rx.subarray(2, size + 2);\n    if (rx[total - 1] !== 3 || crc16(p) !== ((rx[total - 3] << 8) | rx[total - 2])) {\n        rx = rx.subarray(1); // Bei CRC-Fehlern nicht den naechsten Rahmen verwerfen.\n        continue;\n    }\n    const data = parse(p);\n    if (data) out.push({topic: data.control ? \"vesc_control_feedback\" : \"vesc_telemetry\", payload: data});\n    rx = rx.subarray(total);\n}\ncontext.set(\"rx\", rx);\nreturn out.length ? [out] : null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
     "x": 1250,
     "y": 240,
     "wires": [
       [
-        "8080d28f6303f73f",
-        "1c30e7bb3bf13cc7"
+        "0eb4966efd4f66ca",
+        "02d1f8b09bbb8a26"
       ]
-    ],
-    "func": "const GET=4,FWD=34;let rx=context.get(\"rx\")||Buffer.alloc(0),last=context.get(\"last\")||0;\nif(msg.topic===\"watchdog\")return {payload:{available:Date.now()-last<=2000,timestamp:Date.now()}};\nif(!Buffer.isBuffer(msg.payload))msg.payload=Buffer.from(msg.payload);rx=Buffer.concat([rx,msg.payload]);\nfunction crc(b){let c=0;for(const x of b){c^=x<<8;for(let i=0;i<8;i++)c=(c&0x8000)?((c<<1)^0x1021)&65535:(c<<1)&65535;}return c;}\nfunction parse(p){if(p[0]===FWD)return parse(p.slice(2));if(p[0]!==GET)return {available:true};let i=1,v;const h=n=>p.length>=i+n,q=s=>h(2)?(v=p.readInt16BE(i),i+=2,v/s):null,w=s=>h(4)?(v=p.readInt32BE(i),i+=4,v/s):null,z=()=>h(1)?(v=p.readInt8(i),i++,v):null;return {available:true,temp_fet:q(10),temp_motor:q(10),avg_motor_current:w(100),avg_input_current:w(100),avg_id:w(100),avg_iq:w(100),duty_cycle_now:q(1000),rpm:w(1),v_in:q(10),amp_hours:w(10000),amp_hours_charged:w(10000),watt_hours:w(10000),watt_hours_charged:w(10000),tachometer:w(1),tachometer_abs:w(1),mc_fault_code:z(),timestamp:Date.now()};}\nconst out=[];while(rx.length>=5){let s=rx.indexOf(2);if(s<0){rx=Buffer.alloc(0);break;}if(s>0)rx=rx.slice(s);const l=rx[1],t=l+5;if(rx.length<t)break;const p=rx.slice(2,l+2),ok=rx[t-1]===3&&crc(p)===(rx[t-3]<<8|rx[t-2]);if(ok){last=Date.now();context.set(\"last\",last);out.push({payload:parse(p)});}rx=rx.slice(t);}context.set(\"rx\",rx);return out.length?[out]:null;",
+    ]
+  },
+  {
+    "id": "0eb4966efd4f66ca",
+    "type": "function",
+    "z": "e3e367227d20fc75",
+    "name": "store VESC status in flow.vesc",
+    "func": "const p = msg.payload || {};\nconst v = flow.get(\"vesc\", \"memory\") || {config: {}, status: {}, telemetry: {}, memory: {}};\nv.status ??= {};\nv.telemetry ??= {};\nif (p.control) {\n    v.status.control = p.control;\n} else {\n    if (typeof p.available === \"boolean\") v.status.available = p.available;\n    if (typeof p.rpm === \"number\" && Number.isFinite(p.rpm) && typeof p.mc_fault_code === \"number\") {\n        for (const [key, value] of Object.entries(p)) if (value !== null && value !== undefined) v.telemetry[key] = value;\n        v.status.lastRxMs = p.timestamp || Date.now();\n        v.status.erpm = p.rpm;\n    }\n}\nflow.set(\"vesc\", v, \"memory\");\nreturn msg;\n",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
-    "libs": []
-  },
-  {
-    "id": "8080d28f6303f73f",
-    "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "store VESC status in flow.vesc",
+    "libs": [],
     "x": 1260,
     "y": 300,
     "wires": [
       [
-        "3b511e76eb1f5213",
-        "ea6314d7023b0b08"
+        "e2c96b25e47d8bd0",
+        "20023062ba4d5516",
+        "6d560d867c410001"
       ]
-    ],
-    "func": "function obj(v){return v&&typeof v===\"object\"&&!Array.isArray(v)}function has(o,k){return Object.prototype.hasOwnProperty.call(o,k)}function telemetry(p){return [\"rpm\",\"temp_fet\",\"temp_motor\",\"v_in\",\"avg_motor_current\",\"avg_input_current\",\"duty_cycle_now\",\"mc_fault_code\"].some(k=>has(p,k));}\nconst p=msg.payload||{};let v=flow.get(\"vesc\",\"memory\");if(!obj(v))v={};v.config??={};v.status??={};v.telemetry??={};v.memory??={};if(typeof p.available===\"boolean\")v.status.available=p.available;if(telemetry(p)){for(const [k,val] of Object.entries(p))if(val!==null&&val!==undefined)v.telemetry[k]=val;v.status.lastRxMs=Date.now();if(Number.isFinite(Number(p.rpm)))v.status.erpm=Number(p.rpm);}flow.set(\"vesc\",v,\"memory\");return msg;",
+    ]
+  },
+  {
+    "id": "e2c96b25e47d8bd0",
+    "type": "function",
+    "z": "e3e367227d20fc75",
+    "name": "VESC -> SignalK full then changes",
+    "func": "// Actual motor motion comes from GET_VALUES; control ownership and applied mode\n// come ONLY from the VESC LispBM feedback. A sent WiFi command proves neither.\nconst nowMs = Date.now(), timestamp = new Date(nowMs).toISOString();\nconst BASE = \"propulsion.torqeedo\", ERPM_FACTOR = 7, GEAR_RATIO = 14;\nconst TELEMETRY_MAX_AGE_MS = 2000, FEEDBACK_MAX_AGE_MS = 1500, STOP_ERPM = 100;\nconst numeric = n => typeof n === \"number\" && Number.isFinite(n);\nconst object = o => o && typeof o === \"object\" && !Array.isArray(o);\nconst fresh = (stamp, age) => numeric(stamp) && nowMs >= stamp && nowMs - stamp <= age;\nlet v = flow.get(\"vesc\", \"memory\");\nif (!object(v)) v = {};\nv.status ??= {}; v.telemetry ??= {}; v.memory ??= {};\nconst t = v.telemetry, control = v.status.control;\nconst available = fresh(v.status.lastRxMs, TELEMETRY_MAX_AGE_MS);\nconst feedbackAvailable = object(control) && control.protocolVersion === 1 &&\n    (control.source === 0 || control.source === 1) &&\n    (control.mode === 0 || control.mode === 1) &&\n    numeric(control.percent) && control.percent >= -100 && control.percent <= 100 &&\n    fresh(control.lastRxMs, FEEDBACK_MAX_AGE_MS);\nconst activeSource = feedbackAvailable ? (control.source === 0 ? \"poti\" : \"wifi\") : \"unknown\";\nconst appliedMode = !feedbackAvailable ? \"unknown\" : control.mode === 1 ? \"hardStop\" :\n    control.percent > 0 ? \"forward\" : control.percent < 0 ? \"reverse\" : \"stop\";\nconst lastCommand = flow.get(\"vescLastCommand\", \"memory\");\nconst commandValid = object(lastCommand) && numeric(lastCommand.timestampMs) &&\n    lastCommand.timestampMs >= 0 && lastCommand.timestampMs <= nowMs && (lastCommand.mode === \"hardStop\" ||\n    (lastCommand.mode === \"percent\" && numeric(lastCommand.percent) &&\n     lastCommand.percent >= -100 && lastCommand.percent <= 100));\nconst requestedMode = !commandValid ? \"unknown\" : lastCommand.mode === \"hardStop\" ? \"hardStop\" :\n    lastCommand.percent > 0 ? \"forward\" : lastCommand.percent < 0 ? \"reverse\" : \"stop\";\nconst hasFaultCode = available && numeric(t.mc_fault_code);\nconst fault = hasFaultCode && t.mc_fault_code !== 0;\nconst hasRpm = available && numeric(t.rpm);\nconst driveState = !available ? \"unknown\" : fault ? \"fault\" : !hasRpm ? \"unknown\" :\n    t.rpm > STOP_ERPM ? \"forward\" : t.rpm < -STOP_ERPM ? \"reverse\" : \"stopped\";\nconst stateNames = {forward: \"Motor dreht vorwärts\", reverse: \"Motor dreht rückwärts\",\n    stopped: \"Motor steht\", fault: \"VESC-Fehler\", unknown: \"Motorzustand unbekannt\"};\nconst modeNames = {forward: \"Vorwärts\", reverse: \"Rückwärts\", stop: \"0-%-Sollwert\",\n    hardStop: \"Harter STOP aktiv\", unknown: \"Steuerzustand unbekannt\"};\nconst sourceNames = {poti: \"Potentiometer\", wifi: \"Steuerung (WiFi)\", unknown: \"unbekannt\"};\nfunction faultText(code) {\n    const names = [\"none\", \"over_voltage\", \"under_voltage\", \"drv\", \"abs_over_current\",\n        \"over_temp_fet\", \"over_temp_motor\", \"gate_driver_over_voltage\", \"gate_driver_under_voltage\",\n        \"mcu_under_voltage\", \"watchdog_reset\", \"encoder_spi\", \"encoder_sincos_below_min_amplitude\",\n        \"encoder_sincos_above_max_amplitude\", \"flash_corruption\", \"high_offset_current_sensor_1\",\n        \"high_offset_current_sensor_2\", \"high_offset_current_sensor_3\", \"unbalanced_currents\",\n        \"resolver_lot\", \"resolver_dos\", \"resolver_los\"];\n    return names[code] || `unknown_${code}`;\n}\nlet controlStatus = `${modeNames[appliedMode]} | ${stateNames[driveState]} | Steuerquelle: ${sourceNames[activeSource]}`;\nif (!available) controlStatus += \" | VESC-Telemetrie fehlt/veraltet\";\nif (!feedbackAvailable) controlStatus += \" | VESC-Steuerrückmeldung fehlt/veraltet\";\nif (fault) controlStatus += ` (${faultText(t.mc_fault_code)})`;\n\nconst values = [], meta = [];\nfunction remember(path, value) {\n    const parts = path.split(\".\");\n    let target = v.memory;\n    for (let i = 0; i < parts.length - 1; i++) {\n        if (!object(target[parts[i]])) target[parts[i]] = {};\n        target = target[parts[i]];\n    }\n    target[parts[parts.length - 1]] = value;\n}\nfunction add(suffix, value, allowNull = false) {\n    if (value === undefined || (value === null && !allowNull) ||\n        (typeof value === \"number\" && !Number.isFinite(value))) return;\n    const path = `${BASE}.${suffix}`;\n    values.push({path, value});\n    remember(path, value);\n}\nfunction metadata(suffix, displayName, units, description) {\n    const value = {displayName};\n    if (units) value.units = units;\n    if (description) value.description = description;\n    meta.push({path: `${BASE}.${suffix}`, value});\n}\nadd(\"drive.label\", \"Torqeedo\");\nadd(\"drive.available\", available);\nadd(\"controller.available\", available);\nadd(\"drive.state\", driveState);\nadd(\"drive.type\", \"pod\");\nadd(\"drive.fuel.type\", \"electric\");\nadd(\"drive.transmission.gearRatioText\", \"14:1\");\n// Standard Signal K enums; null invalidates a prior value after feedback loss.\nadd(\"state\", driveState === \"fault\" ? \"unusable\" : driveState === \"stopped\" ? \"stopped\" :\n    driveState === \"forward\" || driveState === \"reverse\" ? \"started\" : null, true);\nadd(\"transmission.gear\", fault ? \"Fault\" : !feedbackAvailable ? null :\n    appliedMode === \"forward\" ? \"Forward\" : appliedMode === \"reverse\" ? \"Reverse\" : \"Neutral\", true);\nadd(\"controller.feedbackAvailable\", feedbackAvailable);\nadd(\"controller.activeSource\", activeSource);\nadd(\"controller.activeMode\", appliedMode);\nadd(\"controller.hardStopActive\", feedbackAvailable ? control.mode === 1 : null, true);\nadd(\"controller.appliedPercent\", feedbackAvailable ? control.percent / 100 : null, true);\nadd(\"controller.command\", requestedMode);\nadd(\"controller.commandSource\", commandValid && [\"manual\", \"cruise\"].includes(lastCommand.source) ? lastCommand.source : \"unknown\");\nadd(\"controller.commandPercent\", commandValid ? (lastCommand.mode === \"hardStop\" ? 0 : lastCommand.percent / 100) : null, true);\nadd(\"controller.lastCommandTime\", commandValid ? new Date(lastCommand.timestampMs).toISOString() : null, true);\nadd(\"controller.controlStatus\", controlStatus);\nif (available) {\n    if (hasRpm) {\n        add(\"drive.revolutions\", t.rpm / ERPM_FACTOR / GEAR_RATIO / 60);\n        add(\"drive.motorRpm\", t.rpm / ERPM_FACTOR);\n        add(\"drive.propellerRpm\", t.rpm / ERPM_FACTOR / GEAR_RATIO);\n    }\n    if (numeric(t.temp_motor)) add(\"drive.temperature\", t.temp_motor + 273.15);\n    if (numeric(t.temp_fet)) add(\"controller.temperature\", t.temp_fet + 273.15);\n    if (numeric(t.avg_motor_current)) add(\"controller.current\", t.avg_motor_current);\n    if (numeric(t.avg_input_current)) add(\"controller.inputCurrent\", t.avg_input_current);\n    if (numeric(t.duty_cycle_now)) add(\"controller.dutyCycle\", t.duty_cycle_now);\n    if (numeric(t.v_in)) add(\"controller.inputVoltage\", t.v_in);\n    if (numeric(t.v_in) && numeric(t.avg_input_current)) {\n        add(\"drive.power\", t.v_in * t.avg_input_current);\n        add(\"controller.inputPower\", t.v_in * t.avg_input_current);\n    }\n    if (hasFaultCode) {\n        add(\"controller.faultCode\", faultText(t.mc_fault_code));\n        add(\"controller.faultCodeNumber\", t.mc_fault_code);\n    }\n}\nconst cruise = flow.get(\"vescCruise\", \"memory\");\nif (object(cruise)) {\n    add(\"controller.cruise.enabled\", cruise.enabled === true);\n    add(\"controller.cruise.targetSpeed\", numeric(cruise.targetKn) ? cruise.targetKn * 1852 / 3600 : undefined);\n    const sogFresh = fresh(cruise.sogTimestampMs, 3000) && fresh(cruise.sogReceivedMs, 3000);\n    add(\"controller.cruise.sog\", sogFresh && numeric(cruise.sogKn) ? cruise.sogKn * 1852 / 3600 : null, true);\n    for (const [suffix, key] of [[\"output\", \"outputPercent\"], [\"p\", \"pTerm\"], [\"i\", \"integral\"], [\"d\", \"dTerm\"]])\n        add(`controller.cruise.${suffix}`, numeric(cruise[key]) ? cruise[key] / 100 : undefined);\n    add(\"controller.cruise.reason\", typeof cruise.reason === \"string\" ? cruise.reason : undefined);\n}\nfor (const [path, label, units] of [\n    [\"drive.available\", \"Motor-Telemetrie verfügbar\"], [\"drive.state\", \"Gemessener Motorzustand\"],\n    [\"drive.revolutions\", \"Propellerdrehzahl\", \"Hz\"], [\"drive.motorRpm\", \"Motordrehzahl\", \"rpm\"],\n    [\"drive.propellerRpm\", \"Propellerdrehzahl\", \"rpm\"], [\"drive.temperature\", \"Motortemperatur\", \"K\"],\n    [\"drive.power\", \"Motor-Eingangsleistung\", \"W\"], [\"controller.temperature\", \"Reglertemperatur\", \"K\"],\n    [\"controller.current\", \"Motorstrom\", \"A\"], [\"controller.inputCurrent\", \"Batteriestrom\", \"A\"],\n    [\"controller.inputPower\", \"Regler-Eingangsleistung\", \"W\"], [\"controller.inputVoltage\", \"Batteriespannung\", \"V\"],\n    [\"controller.dutyCycle\", \"Tastverhältnis\", \"ratio\"], [\"controller.faultCode\", \"VESC-Fehler\"],\n    [\"controller.feedbackAvailable\", \"Steuerrückmeldung verfügbar\"], [\"controller.activeSource\", \"Aktive Steuerquelle\"],\n    [\"controller.activeMode\", \"Vom VESC angewendeter Modus\"], [\"controller.hardStopActive\", \"Harter STOP aktiv\"],\n    [\"controller.appliedPercent\", \"Vom VESC angewendeter Drehzahlsollwert\", \"ratio\"],\n    [\"controller.command\", \"Zuletzt gesendeter Steuerbefehl\"], [\"controller.commandSource\", \"Quelle des letzten Steuerbefehls\"],\n    [\"controller.commandPercent\", \"Zuletzt gesendeter Drehzahlsollwert\", \"ratio\"],\n    [\"controller.lastCommandTime\", \"Zeit des letzten Steuerbefehls\"], [\"controller.controlStatus\", \"Antriebsstatus\"],\n    [\"controller.cruise.enabled\", \"Tempomat eingeschaltet\"], [\"controller.cruise.targetSpeed\", \"Tempomat-Sollgeschwindigkeit\", \"m/s\"],\n    [\"controller.cruise.sog\", \"Tempomat-SOG\", \"m/s\"], [\"controller.cruise.output\", \"Tempomat-Ausgang\", \"ratio\"],\n    [\"controller.cruise.p\", \"PID-P-Anteil\", \"ratio\"], [\"controller.cruise.i\", \"PID-I-Anteil\", \"ratio\"],\n    [\"controller.cruise.d\", \"PID-D-Anteil\", \"ratio\"], [\"controller.cruise.reason\", \"Tempomat-Status\"]\n]) metadata(path, label, units);\n\nconst wasFull = context.get(\"fullSent\") === true;\nconst previous = context.get(\"lastSent\") || {}, changed = [];\nfor (const item of values) {\n    const encoded = JSON.stringify(item.value);\n    if (!wasFull || previous[item.path] !== encoded) changed.push(item);\n    previous[item.path] = encoded;\n}\nconst lastHeartbeatMs = context.get(\"lastHeartbeatMs\");\nconst heartbeat = !wasFull || !numeric(lastHeartbeatMs) || nowMs < lastHeartbeatMs || nowMs - lastHeartbeatMs >= 1000;\nflow.set(\"vesc\", v, \"memory\");\nif (wasFull && !changed.length && !heartbeat) return null;\ncontext.set(\"fullSent\", true);\ncontext.set(\"lastSent\", previous);\nif (heartbeat) context.set(\"lastHeartbeatMs\", nowMs);\nconst source = {label: \"vesc\", type: \"VESC\"};\nmsg.payload = {context: \"vessels.self\", updates: [\n    {source, timestamp, values: heartbeat ? values : changed},\n    ...(!wasFull ? [{source, timestamp, meta}] : [])\n]};\nreturn msg;\n",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
-    "initialize": "",
+    "initialize": "context.set(\"fullSent\", false); context.set(\"lastSent\", {}); context.set(\"lastHeartbeatMs\", 0);",
     "finalize": "",
-    "libs": []
-  },
-  {
-    "id": "3b511e76eb1f5213",
-    "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "VESC -> SignalK full then changes",
+    "libs": [],
     "x": 1280,
     "y": 360,
     "wires": [
       [
-        "4ccb11de67da42ae",
-        "db33b5bfcacbcb23"
+        "af1d9c38183005cb",
+        "bc5b1e23cd381928",
+        "6d560d867c410009"
       ]
-    ],
-    "func": "const p=msg.payload||{},now=new Date().toISOString(),ERPM_FACTOR=7,GEAR_RATIO=14;\nfunction num(v){return typeof v===\"number\"&&Number.isFinite(v)}function obj(v){return v&&typeof v===\"object\"&&!Array.isArray(v)}let v=flow.get(\"vesc\",\"memory\")||{};v.status??={};v.memory??={};function setMemory(path,value){const parts=path.split(\".\");let o=v.memory;for(let i=0;i<parts.length-1;i++){if(!obj(o[parts[i]]))o[parts[i]]={};o=o[parts[i]];}o[parts.at(-1)]=value;}\nfunction faultText(code){const names=[\"none\",\"over_voltage\",\"under_voltage\",\"drv\",\"abs_over_current\",\"over_temp_fet\",\"over_temp_motor\",\"gate_driver_over_voltage\",\"gate_driver_under_voltage\",\"mcu_under_voltage\",\"watchdog_reset\",\"encoder_spi\",\"encoder_sincos_below_min_amplitude\",\"encoder_sincos_above_max_amplitude\",\"flash_corruption\",\"high_offset_current_sensor_1\",\"high_offset_current_sensor_2\",\"high_offset_current_sensor_3\",\"unbalanced_currents\",\"resolver_lot\",\"resolver_dos\",\"resolver_los\"];return names[Number(code)]||`unknown_${code}`;}\nfunction motorState(){if(num(p.mc_fault_code)&&p.mc_fault_code!==0)return \"fault\";const mode=v.status.driveMode,erpm=Number(p.rpm),input=Number(p.avg_input_current);if(mode===\"freewheel\")return \"stopped\";if(mode===\"generate\"||input<-0.5)return Math.abs(erpm)>1500?\"generative\":\"stopped generative\";if(mode===\"handbrake\")return Math.abs(erpm)>1500?\"handbrake\":\"stopped handbrake\";if(Math.abs(erpm)>1500)return erpm>0?\"forward\":\"reverse\";return \"stopped\";}\nconst values=[],meta=[];function add(path,value){if(value===undefined||value===null||(typeof value===\"number\"&&!Number.isFinite(value)))return;values.push({path,value});setMemory(path,value);}function addMeta(path,displayName,units){const value={displayName};if(units)value.units=units;meta.push({path,value});}\nconst only=typeof p.available===\"boolean\"&&!num(p.rpm)&&!num(p.v_in);const available=typeof p.available===\"boolean\"?p.available:num(p.v_in);\nadd(\"propulsion.torqeedo.drive.label\",\"Torqeedo\");add(\"propulsion.torqeedo.drive.available\",available);add(\"propulsion.torqeedo.controller.available\",available);\nif(!only){add(\"propulsion.torqeedo.drive.state\",motorState());add(\"propulsion.torqeedo.drive.type\",\"pod\");add(\"propulsion.torqeedo.drive.fuel.type\",\"electric\");add(\"propulsion.torqeedo.drive.transmission.gearRatioText\",\"14:1\");if(v.status.driveMode)add(\"propulsion.torqeedo.controller.driveMode\",v.status.driveMode);}\nif(num(p.rpm)){add(\"propulsion.torqeedo.drive.revolutions\",p.rpm/ERPM_FACTOR/GEAR_RATIO/60);add(\"propulsion.torqeedo.drive.motorRpm\",p.rpm/ERPM_FACTOR);add(\"propulsion.torqeedo.drive.propellerRpm\",p.rpm/ERPM_FACTOR/GEAR_RATIO);}\nif(num(p.temp_motor))add(\"propulsion.torqeedo.drive.temperature\",p.temp_motor+273.15);if(num(p.temp_fet))add(\"propulsion.torqeedo.controller.temperature\",p.temp_fet+273.15);if(num(p.avg_motor_current))add(\"propulsion.torqeedo.controller.current\",p.avg_motor_current);if(num(p.avg_input_current))add(\"propulsion.torqeedo.controller.inputCurrent\",p.avg_input_current);if(num(p.duty_cycle_now))add(\"propulsion.torqeedo.controller.dutyCycle\",p.duty_cycle_now);if(num(p.v_in))add(\"propulsion.torqeedo.controller.inputVoltage\",p.v_in);if(num(p.v_in)&&num(p.avg_input_current)){const power=p.v_in*p.avg_input_current;add(\"propulsion.torqeedo.drive.power\",power);add(\"propulsion.torqeedo.controller.inputPower\",power);}if(num(p.mc_fault_code)){add(\"propulsion.torqeedo.controller.faultCode\",faultText(p.mc_fault_code));add(\"propulsion.torqeedo.controller.faultCodeNumber\",p.mc_fault_code);}\nfor(const [path,name,unit] of [[\"propulsion.torqeedo.drive.available\",\"Propulsion Available\"],[\"propulsion.torqeedo.drive.state\",\"Propulsion State\"],[\"propulsion.torqeedo.drive.revolutions\",\"Propeller Revolutions\",\"Hz\"],[\"propulsion.torqeedo.drive.motorRpm\",\"Motor RPM\",\"rpm\"],[\"propulsion.torqeedo.drive.propellerRpm\",\"Propeller RPM\",\"rpm\"],[\"propulsion.torqeedo.drive.temperature\",\"Motor Temperature\",\"K\"],[\"propulsion.torqeedo.drive.power\",\"Propulsion Power\",\"W\"],[\"propulsion.torqeedo.controller.temperature\",\"Controller Temperature\",\"K\"],[\"propulsion.torqeedo.controller.current\",\"Motor Current\",\"A\"],[\"propulsion.torqeedo.controller.inputCurrent\",\"Input Current\",\"A\"],[\"propulsion.torqeedo.controller.inputPower\",\"Input Power\",\"W\"],[\"propulsion.torqeedo.controller.inputVoltage\",\"Input Voltage\",\"V\"],[\"propulsion.torqeedo.controller.dutyCycle\",\"Duty Cycle\",\"ratio\"],[\"propulsion.torqeedo.controller.faultCode\",\"Fault Code\"]])addMeta(path,name,unit);\nconst wasFull=context.get(\"fullSent\")===true,previous=context.get(\"lastSent\")||{},changed=[];for(const item of values){const s=JSON.stringify(item.value);if(!wasFull||previous[item.path]!==s){changed.push(item);previous[item.path]=s;}}flow.set(\"vesc\",v,\"memory\");if(!changed.length&&wasFull)return null;context.set(\"lastSent\",previous);context.set(\"fullSent\",true);msg.payload={context:\"vessels.self\",updates:[{source:{label:\"vesc\",type:\"VESC\"},timestamp:now,values:changed},...(!wasFull?[{source:{label:\"vesc\",type:\"VESC\"},timestamp:now,meta}]:[])]};return msg;",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "context.set('fullSent', false); context.set('lastSent', {});",
-    "finalize": "",
-    "libs": []
+    ]
   },
   {
-    "id": "4ccb11de67da42ae",
+    "id": "af1d9c38183005cb",
     "type": "signalk-send-delta",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "",
     "x": 1530,
     "y": 360,
     "wires": []
   },
   {
-    "id": "b459356e7e0a3fe1",
+    "id": "ab1e2096d2bfcdd0",
     "type": "inject",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "temp display tick",
-    "x": 920,
-    "y": 470,
-    "wires": [
-      [
-        "93a28d5d96c8c446"
-      ]
-    ],
     "props": [
       {
         "p": "payload"
@@ -622,20 +523,20 @@
     "onceDelay": 0.1,
     "topic": "",
     "payload": "vesc.telemetry.temp_fet",
-    "payloadType": "flow"
-  },
-  {
-    "id": "c3fcba2d24cb3cfd",
-    "type": "inject",
-    "z": "3c4ce928d484b7ee",
-    "name": "ERPM display tick",
+    "payloadType": "flow",
     "x": 920,
-    "y": 510,
+    "y": 470,
     "wires": [
       [
-        "13758b750f7ab88e"
+        "39ae3e40f25d9891"
       ]
-    ],
+    ]
+  },
+  {
+    "id": "0fba9c9f285350ae",
+    "type": "inject",
+    "z": "e3e367227d20fc75",
+    "name": "ERPM display tick",
     "props": [
       {
         "p": "payload"
@@ -651,20 +552,24 @@
     "onceDelay": 0.1,
     "topic": "",
     "payload": "vesc.status.erpm",
-    "payloadType": "flow"
+    "payloadType": "flow",
+    "x": 920,
+    "y": 510,
+    "wires": [
+      [
+        "917b45235ec9b789"
+      ]
+    ]
   },
   {
-    "id": "93a28d5d96c8c446",
+    "id": "39ae3e40f25d9891",
     "type": "ui_text",
-    "z": "3c4ce928d484b7ee",
-    "name": "",
-    "x": 1160,
-    "y": 470,
-    "wires": [],
+    "z": "e3e367227d20fc75",
     "group": "ui_group_motor",
     "order": 6,
     "width": 0,
     "height": 0,
+    "name": "",
     "label": "Temp FET",
     "format": "{{msg.payload}} °C",
     "layout": "row-spread",
@@ -672,40 +577,40 @@
     "style": false,
     "font": "",
     "fontSize": 16,
-    "color": "#000000"
+    "color": "#000000",
+    "x": 1160,
+    "y": 470,
+    "wires": []
   },
   {
-    "id": "13758b750f7ab88e",
+    "id": "917b45235ec9b789",
     "type": "range",
-    "z": "3c4ce928d484b7ee",
-    "name": "",
-    "x": 1090,
-    "y": 560,
-    "wires": [
-      [
-        "ca47c8d55531a2f5"
-      ]
-    ],
+    "z": "e3e367227d20fc75",
     "minin": "0",
     "maxin": "98",
     "minout": "0",
     "maxout": "1",
     "action": "scale",
     "round": true,
-    "property": "payload"
+    "property": "payload",
+    "name": "",
+    "x": 1090,
+    "y": 560,
+    "wires": [
+      [
+        "ef04dd6b5e42a9ce"
+      ]
+    ]
   },
   {
-    "id": "ca47c8d55531a2f5",
+    "id": "ef04dd6b5e42a9ce",
     "type": "ui_text",
-    "z": "3c4ce928d484b7ee",
-    "name": "",
-    "x": 1150,
-    "y": 500,
-    "wires": [],
+    "z": "e3e367227d20fc75",
     "group": "ui_group_motor",
     "order": 5,
     "width": 0,
     "height": 0,
+    "name": "",
     "label": "Rpm ",
     "format": "{{msg.payload}}",
     "layout": "row-spread",
@@ -713,68 +618,85 @@
     "style": false,
     "font": "",
     "fontSize": 16,
-    "color": "#000000"
+    "color": "#000000",
+    "x": 1150,
+    "y": 500,
+    "wires": []
   },
   {
-    "id": "2cb20a008b4e0176",
+    "id": "70b9b1524a0ae252",
     "type": "inject",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "fan tick",
-    "x": 140,
-    "y": 1120,
-    "wires": [
-      [
-        "0bb0dc4c651dac49"
-      ]
-    ],
     "props": [],
     "repeat": "10",
     "crontab": "",
     "once": false,
     "onceDelay": 0.1,
-    "topic": ""
-  },
-  {
-    "id": "0bb0dc4c651dac49",
-    "type": "function",
-    "z": "3c4ce928d484b7ee",
-    "name": "VESC FET fan",
-    "x": 340,
+    "topic": "",
+    "x": 140,
     "y": 1120,
     "wires": [
       [
-        "f9b9a7a2d2fd6460"
+        "cbdb1fd82decdd31"
       ]
-    ],
+    ]
+  },
+  {
+    "id": "cbdb1fd82decdd31",
+    "type": "function",
+    "z": "e3e367227d20fc75",
+    "name": "VESC FET fan",
     "func": "const vesc=flow.get(\"vesc\",\"memory\")||{};const temp=Number(vesc.telemetry?.temp_fet);const setpoint=Number.isFinite(temp)&&temp>45?temp*1.5:0;msg.payload=JSON.stringify({type:\"set\",channel:16,value:setpoint,fadeMs:0});return msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
-    "libs": []
-  },
-  {
-    "id": "f9b9a7a2d2fd6460",
-    "type": "link out",
-    "z": "3c4ce928d484b7ee",
-    "name": "link out 7",
-    "x": 515,
+    "libs": [],
+    "x": 340,
     "y": 1120,
-    "wires": [],
-    "mode": "link",
-    "links": [
-      "d884558431ecd46d"
+    "wires": [
+      [
+        "224702d478c1079c"
+      ]
     ]
   },
   {
-    "id": "ea6314d7023b0b08",
+    "id": "224702d478c1079c",
+    "type": "link out",
+    "z": "e3e367227d20fc75",
+    "name": "link out 7",
+    "mode": "link",
+    "links": [
+      "d884558431ecd46d"
+    ],
+    "x": 515,
+    "y": 1120,
+    "wires": []
+  },
+  {
+    "id": "20023062ba4d5516",
     "type": "debug",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "debug 2",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
     "x": 1500,
     "y": 300,
-    "wires": [],
+    "wires": []
+  },
+  {
+    "id": "02d1f8b09bbb8a26",
+    "type": "debug",
+    "z": "e3e367227d20fc75",
+    "name": "debug 6",
     "active": false,
     "tosidebar": true,
     "console": false,
@@ -782,16 +704,16 @@
     "complete": "true",
     "targetType": "full",
     "statusVal": "",
-    "statusType": "auto"
-  },
-  {
-    "id": "1c30e7bb3bf13cc7",
-    "type": "debug",
-    "z": "3c4ce928d484b7ee",
-    "name": "debug 6",
+    "statusType": "auto",
     "x": 1500,
     "y": 240,
-    "wires": [],
+    "wires": []
+  },
+  {
+    "id": "bc5b1e23cd381928",
+    "type": "debug",
+    "z": "e3e367227d20fc75",
+    "name": "debug 7",
     "active": false,
     "tosidebar": true,
     "console": false,
@@ -799,33 +721,16 @@
     "complete": "true",
     "targetType": "full",
     "statusVal": "",
-    "statusType": "auto"
-  },
-  {
-    "id": "db33b5bfcacbcb23",
-    "type": "debug",
-    "z": "3c4ce928d484b7ee",
-    "name": "debug 7",
+    "statusType": "auto",
     "x": 1500,
     "y": 440,
-    "wires": [],
-    "active": false,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto"
+    "wires": []
   },
   {
-    "id": "30c4e215d1b2a4c8",
+    "id": "2884395f386fdaf7",
     "type": "debug",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "debug 9",
-    "x": 1500,
-    "y": 200,
-    "wires": [],
     "active": true,
     "tosidebar": true,
     "console": false,
@@ -833,16 +738,16 @@
     "complete": "true",
     "targetType": "full",
     "statusVal": "",
-    "statusType": "auto"
+    "statusType": "auto",
+    "x": 1500,
+    "y": 200,
+    "wires": []
   },
   {
-    "id": "c95093d4bd84ad7d",
+    "id": "9ae0bd926c24f996",
     "type": "debug",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "debug 4",
-    "x": 1500,
-    "y": 320,
-    "wires": [],
     "active": false,
     "tosidebar": true,
     "console": false,
@@ -850,20 +755,45 @@
     "complete": "false",
     "targetType": "full",
     "statusVal": "",
-    "statusType": "auto"
+    "statusType": "auto",
+    "x": 1500,
+    "y": 320,
+    "wires": []
   },
   {
-    "id": "8e6b096d1feaff8f",
+    "id": "cfbc40b26ed7ac92",
     "type": "inject",
-    "z": "3c4ce928d484b7ee",
-    "name": "0%",
+    "z": "e3e367227d20fc75",
+    "name": "Test STOP (HARD)",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "cruise_stop",
+    "payload": "0",
+    "payloadType": "num",
     "x": 710,
     "y": 360,
     "wires": [
       [
-        "04512931fdc88df8"
+        "6d560d867c410001"
       ]
-    ],
+    ]
+  },
+  {
+    "id": "93783de4631b6c04",
+    "type": "inject",
+    "z": "e3e367227d20fc75",
+    "name": "Test Fahrt30 % (mit Freigabe)",
     "props": [
       {
         "p": "payload"
@@ -877,125 +807,82 @@
     "crontab": "",
     "once": false,
     "onceDelay": 0.1,
-    "topic": "",
-    "payload": "[2,6,34,29,36,1,0,0,81,231,3]",
-    "payloadType": "bin"
-  },
-  {
-    "id": "3e2f8f5b2af36fec",
-    "type": "inject",
-    "z": "3c4ce928d484b7ee",
-    "name": "30%",
+    "topic": "cruise_manual",
+    "payload": "30",
+    "payloadType": "num",
     "x": 710,
     "y": 300,
     "wires": [
       [
-        "04512931fdc88df8"
+        "6d560d867c410001"
       ]
-    ],
-    "props": [
-      {
-        "p": "payload"
-      },
-      {
-        "p": "topic",
-        "vt": "str"
-      }
-    ],
-    "repeat": "",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "topic": "",
-    "payload": "[2,6,34,29,36,1,1,44,135,56,3]",
-    "payloadType": "bin"
+    ]
   },
   {
-    "id": "db34773cfa6e22ed",
+    "id": "40394e03cb4ff863",
     "type": "ui_spacer",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "",
-    "x": 0,
-    "y": 0,
-    "wires": [],
     "group": "ui_group_ap_main",
     "order": 3,
     "width": 3,
     "height": 1
   },
   {
-    "id": "d0dbd20325806889",
+    "id": "4107a278156c693c",
     "type": "ui_spacer",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "",
-    "x": 0,
-    "y": 0,
-    "wires": [],
     "group": "ui_group_ap_main",
     "order": 7,
     "width": 3,
     "height": 1
   },
   {
-    "id": "2f3cd52abced2a85",
+    "id": "3180735ac784d462",
     "type": "ui_spacer",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "",
-    "x": 0,
-    "y": 0,
-    "wires": [],
     "group": "ui_group_ap_main",
     "order": 9,
     "width": 3,
     "height": 1
   },
   {
-    "id": "75e577eeea9689ed",
+    "id": "589c9e2b22af4873",
     "type": "ui_spacer",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "",
-    "x": 0,
-    "y": 0,
-    "wires": [],
     "group": "ui_group_ap_main",
     "order": 11,
     "width": 3,
     "height": 1
   },
   {
-    "id": "75f4c29c56bc3d57",
+    "id": "106d0f3844d3c82e",
     "type": "ui_spacer",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "",
-    "x": 0,
-    "y": 0,
-    "wires": [],
     "group": "ui_group_ap_main",
     "order": 13,
     "width": 4,
     "height": 1
   },
   {
-    "id": "f22c2f22011d3949",
+    "id": "b0ae1e70bda2e39c",
     "type": "ui_spacer",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "",
-    "x": 0,
-    "y": 0,
-    "wires": [],
     "group": "ui_group_ap_main",
     "order": 15,
     "width": 4,
     "height": 1
   },
   {
-    "id": "767c18190c0bca8d",
+    "id": "ac9f1cdb8de571db",
     "type": "ui_spacer",
-    "z": "3c4ce928d484b7ee",
+    "z": "e3e367227d20fc75",
     "name": "",
-    "x": 0,
-    "y": 0,
-    "wires": [],
     "group": "ui_group_ap_main",
     "order": 17,
     "width": 4,
@@ -1032,12 +919,238 @@
     "hidden": false
   },
   {
-    "id": "96835bed507cd6d9",
+    "id": "9c982751786c6807",
     "type": "global-config",
     "env": [],
     "modules": {
       "node-red-dashboard": "3.6.6",
       "@signalk/node-red-embedded": "2.21.0"
     }
+  },
+  {
+    "id": "6d560d867c410001",
+    "type": "function",
+    "z": "e3e367227d20fc75",
+    "name": "Tempomat + Handbetrieb (PID, kn)",
+    "x": 580,
+    "y": 1380,
+    "wires": [
+      [
+        "54c6f7bb5b0e0908"
+      ],
+      [
+        "6d560d867c410002"
+      ],
+      [
+        "6d560d867c410003"
+      ],
+      [
+        "6d560d867c410004"
+      ],
+      [
+        "4ade8ad91ac50ceb"
+      ]
+    ],
+    "func": "// Reiner PID: u = Kp * e + Integral(Ki * e) - Kd * d(SOG)/dt.\n// Ausgang bleibt der vorhandene LispBM-Drehzahlsollwert in Prozent.\n// Startwerte fuer Probefahrt; keine am Boot validierte Abstimmung.\nconst CFG = {\n    KP: 100,                 // Prozentpunkte / kn\n    KI: 5,                   // Prozentpunkte / (kn * s)\n    KD: 10,                  // Prozentpunkte * s / kn\n    FILTER_TAU_S: 0.5,       // SOG-Tiefpass\n    D_FILTER_TAU_S: 0.5,     // Tiefpass der gemessenen SOG-Aenderungsrate\n    MAX_PERCENT: 100,\n    SOG_MAX_AGE_MS: 3000,\n    SOG_MAX_M_S: 50,         // Plausibilitaetsgrenze, keine Sollgeschwindigkeit\n    VESC_MAX_AGE_MS: 2500,\n    CONTROL_MAX_AGE_MS: 1500,\n    FUTURE_TOLERANCE_MS: 1000,\n    MAX_TICK_GAP_MS: 1500\n};\nconst now = Date.now();\nconst s = flow.get(\"vescCruise\", \"memory\");\nif (!s) return null; // On Start muss vor den Nachrichten gelaufen sein.\nconst v = flow.get(\"vesc\", \"memory\") || {};\nconst clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));\nconst numeric = n => typeof n === \"number\" && Number.isFinite(n);\nlet drive = null, slider = null, manualUi = null;\n\nfunction command(percent, cruise, hardStop = false) {\n    s.serial += 1;\n    drive = {\n        topic: cruise ? \"vesc_cruise_drive\" : \"vesc_manual_drive\",\n        payload: percent,\n        _vescSerial: s.serial,\n        _vescSession: s.session,\n        _vescCruise: cruise,\n        _vescHardStop: hardStop,\n        _vescAcquire: cruise ? s.acquireNext === true : true\n    };\n    s.outputPercent = percent;\n    s.acquireNext = false;\n    // Anzeige aktualisieren, ohne einen manuellen Eingriff auszulösen.\n    manualUi = {payload: percent, _cruiseUi: true};\n}\nfunction cancel(reason, stop) {\n    s.enabled = false;\n    s.integral = 0;\n    s.pTerm = 0;\n    s.dTerm = 0;\n    s.errorKn = 0;\n    s.unclampedPercent = 0;\n    s.lastTickMs = 0;\n    s.reason = reason;\n    if (stop) command(0, false, true);\n    else s.serial += 1;\n}\nfunction sogProblem() {\n    if (!numeric(s.sogKn) || !numeric(s.sogTimestampMs)) return \"SOG fehlt/ungueltig\";\n    if (now - s.sogReceivedMs > CFG.SOG_MAX_AGE_MS ||\n        now - s.sogTimestampMs > CFG.SOG_MAX_AGE_MS ||\n        s.sogTimestampMs - now > CFG.FUTURE_TOLERANCE_MS) return \"SOG veraltet/Zeitstempel ungueltig\";\n    return \"\";\n}\nfunction motorProblem() {\n    if (v.config?.engineOn !== true) return \"Motor ausgeschaltet\";\n    if (v.status?.available !== true || !numeric(v.status?.lastRxMs) ||\n        now - v.status.lastRxMs < 0 || now - v.status.lastRxMs > CFG.VESC_MAX_AGE_MS)\n        return \"VESC-Telemetrie fehlt/veraltet\";\n    if (!numeric(v.telemetry?.mc_fault_code) || v.telemetry.mc_fault_code !== 0)\n        return \"VESC-Fehler/Fehlerstatus fehlt\";\n    if (!v.status.control || now - v.status.control.lastRxMs < 0 || now - v.status.control.lastRxMs > CFG.CONTROL_MAX_AGE_MS)\n        return \"VESC-Steuerungsstatus fehlt: LispBM aktualisieren / Verbindung pruefen\";\n    return \"\";\n}\n\nfunction pid(dt) {\n    if (s.targetKn === 0) {\n        s.integral = 0;\n        s.pTerm = 0;\n        s.dTerm = 0;\n        s.errorKn = 0;\n        s.unclampedPercent = 0;\n        command(0, true, true);\n        s.reason = \"PID aktiv, Sollwert 0 kn\";\n        return;\n    }\n    const problem = motorProblem() || sogProblem();\n    if (problem) { cancel(problem, true); return; }\n    const error = s.targetKn - s.filteredKn;\n    const p = CFG.KP * error;\n    // D nur aus Messwertaenderungen, damit Sollwertspruenge keinen D-Stoss erzeugen.\n    const d = -CFG.KD * s.derivativeKnS;\n    const beforeIntegration = p + s.integral + d;\n    // Klassisches Clamping-Anti-Windup an den tatsaechlichen Ausgangsgrenzen.\n    // Bei Saettigung nur integrieren, wenn der Fehler die Saettigung abbaut.\n    if (!((beforeIntegration >= CFG.MAX_PERCENT && error > 0) ||\n          (beforeIntegration <= 0 && error < 0))) {\n        s.integral = clamp(s.integral + CFG.KI * error * dt,\n                           -CFG.MAX_PERCENT, CFG.MAX_PERCENT);\n    }\n    s.errorKn = error;\n    s.pTerm = p;\n    s.dTerm = d;\n    s.unclampedPercent = p + s.integral + d;\n    // Keine Stellwertrampe: grosse positive Abweichung saettigt direkt auf 100 %.\n    command(clamp(s.unclampedPercent, 0, CFG.MAX_PERCENT), true);\n    s.reason = \"PID aktiv\";\n}\n\n// Ein zuvor aktiver Tempomat wird nach Redeploy beendet, niemals wieder aktiviert.\nif (s.pendingStop) {\n    s.pendingStop = false;\n    cancel(\"Nach Deploy ausgeschaltet\", true);\n}\n\nswitch (msg.topic) {\ncase \"navigation.speedOverGround\": {\n    if (msg.context !== \"vessels.self\") { if (drive) break; return null; }\n    const stamp = typeof msg.timestamp === \"string\" ? Date.parse(msg.timestamp) : NaN;\n    if (!numeric(msg.payload) || msg.payload < 0 || msg.payload > CFG.SOG_MAX_M_S || !Number.isFinite(stamp) ||\n        now - stamp > CFG.SOG_MAX_AGE_MS || stamp - now > CFG.FUTURE_TOLERANCE_MS) {\n        s.sogKn = null;\n        s.filteredKn = null;\n        if (s.enabled) cancel(\"SOG ungueltig/veraltet\", true);\n        else s.reason = \"SOG ungueltig/veraltet\";\n        break;\n    }\n    // Gleiche/aeltere Zeitstempel sind kein neues GPS-Sample.\n    if (numeric(s.sogTimestampMs) && stamp <= s.sogTimestampMs) break;\n    const kn = msg.payload * 3600 / 1852;\n    if (!Number.isFinite(kn)) {\n        s.sogKn = null;\n        if (s.enabled) cancel(\"SOG ungueltig\", true);\n        break;\n    }\n    const sampleDt = numeric(s.sogTimestampMs) ? (stamp - s.sogTimestampMs) / 1000 : 0;\n    if (!numeric(s.filteredKn) || sampleDt <= 0 || sampleDt > CFG.SOG_MAX_AGE_MS / 1000) {\n        s.filteredKn = kn;\n        s.derivativeKnS = 0;\n    } else {\n        const previousFiltered = s.filteredKn;\n        const alpha = 1 - Math.exp(-sampleDt / CFG.FILTER_TAU_S);\n        s.filteredKn += alpha * (kn - s.filteredKn);\n        const measuredDerivative = (s.filteredKn - previousFiltered) / sampleDt;\n        const dAlpha = 1 - Math.exp(-sampleDt / CFG.D_FILTER_TAU_S);\n        s.derivativeKnS += dAlpha * (measuredDerivative - s.derivativeKnS);\n    }\n    s.sogKn = kn;\n    s.sogTimestampMs = stamp;\n    s.sogReceivedMs = now;\n    break;\n}\ncase \"cruise_setpoint\": {\n    if (!numeric(msg.payload) || msg.payload < 0 || msg.payload > 4) {\n        node.error(\"Tempomat-Sollwert muss eine Zahl von 0 bis 4 kn sein\", msg);\n        slider = {payload: s.targetKn};\n        break;\n    }\n    s.targetKn = Math.round(msg.payload * 10) / 10;\n    flow.set(\"vescCruiseConfig\", {targetKn: s.targetKn}, \"file\");\n    if (s.enabled) {\n        const elapsed = now - s.lastTickMs;\n        if (elapsed < 0 || elapsed > CFG.MAX_TICK_GAP_MS) cancel(\"Regeltakt unterbrochen\", true);\n        else pid(0); // P wirkt sofort; Zeit fuer I ausschliesslich im Regeltakt.\n    }\n    break;\n}\ncase \"cruise_toggle\": {\n    if (s.enabled) {\n        cancel(\"Tempomat ausgeschaltet\", true);\n        break;\n    }\n    const problem = motorProblem() || sogProblem();\n    const last = flow.get(\"vescLastCommand\", \"memory\");\n    if (problem || (numeric(last?.percent) && last.percent < 0)) {\n        s.reason = problem || \"Erst manuell auf 0 %, dann Tempomat\";\n        break;\n    }\n    s.enabled = true;\n    s.filteredKn = s.sogKn;\n    s.derivativeKnS = 0;\n    s.integral = 0; // P beim Einschalten nicht mehr durch den Integrator aufheben.\n    s.lastTickMs = now;\n    s.acquireNext = true;\n    pid(0);\n    break;\n}\ncase \"cruise_manual\": {\n    if (msg._cruiseUi === true) { if (drive) break; return null; }\n    if (!numeric(msg.payload) || msg.payload < -100 || msg.payload > 100) { if (drive) break; return null; }\n    cancel(msg.payload === 0 ? \"STOP / Handbetrieb 0 %\" : \"Handbetrieb\", false);\n    if (msg.payload === 0) command(0, false, true);\n    else if (v.config?.engineOn === true && !motorProblem()) command(msg.payload, false);\n    else s.reason = v.config?.engineOn === true ? motorProblem() : \"Motor ausgeschaltet\";\n    break;\n}\ncase \"cruise_stop\":\n    cancel(\"STOP\", true);\n    break;\ncase \"cruise_engine_off\":\n    cancel(\"Motor ausgeschaltet\", true);\n    break;\ncase \"cruise_init\":\n    slider = {payload: s.targetKn};\n    break;\ncase \"vesc_control_feedback\": {\n    const feedback = v.status.control;\n    if (s.enabled && feedback?.source === 0) {\n        // Poti hat physisch uebernommen: keine STOP-Anforderung dagegen senden.\n        cancel(\"Poti hat uebernommen\", false);\n        s.outputPercent = feedback.percent;\n        manualUi = {payload: feedback.percent, _cruiseUi: true};\n    }\n    if (!s.enabled && numeric(feedback?.percent))\n        manualUi = {payload: feedback.percent, _cruiseUi: true};\n    break;\n}\ncase \"cruise_tick\": {\n    if (!s.enabled) break;\n    const problem = motorProblem() || sogProblem();\n    if (problem) { cancel(problem, true); break; }\n    const elapsed = now - s.lastTickMs;\n    if (elapsed < 0 || elapsed > CFG.MAX_TICK_GAP_MS) {\n        cancel(\"Regeltakt unterbrochen\", true);\n        break;\n    }\n    if (elapsed === 0) break;\n    s.lastTickMs = now;\n    pid(elapsed / 1000);\n    break;\n}\ndefault:\n    if (drive) break;\n    return null;\n}\n\nflow.set(\"vescCruise\", s, \"memory\");\nconst fresh = !sogProblem();\nconst text = `${s.enabled ? \"EIN\" : \"AUS\"} | Soll ${s.targetKn.toFixed(1)} kn | SOG ${fresh ? s.sogKn.toFixed(2) : \"--\"} kn | Sollwert ${s.outputPercent.toFixed(1)} % | P ${s.pTerm.toFixed(1)} / I ${s.integral.toFixed(1)} / D ${s.dTerm.toFixed(1)} | ${s.reason}`;\nnode.status({fill: s.enabled ? \"green\" : \"grey\", shape: s.enabled ? \"dot\" : \"ring\", text});\nreturn [drive, {payload: s.enabled, label: s.enabled ? \"Tempomat: EIN\" : \"Tempomat: AUS\", background: s.enabled ? \"#2e7d32\" : \"#616161\"}, slider, {payload: text}, manualUi];\n",
+    "outputs": 5,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "const saved = flow.get(\"vescCruiseConfig\", \"file\");\nconst targetKn = typeof saved?.targetKn === \"number\" && Number.isFinite(saved.targetKn) && saved.targetKn >= 0 && saved.targetKn <= 4 ? saved.targetKn : 0;\nflow.set(\"vescCruise\", {\n    enabled: false,\n    acquireNext: false,\n    targetKn,\n    integral: 0,\n    pTerm: 0,\n    dTerm: 0,\n    errorKn: 0,\n    unclampedPercent: 0,\n    derivativeKnS: 0,\n    outputPercent: 0,\n    lastTickMs: 0,\n    sogKn: null,\n    filteredKn: null,\n    sogTimestampMs: null,\n    sogReceivedMs: 0,\n    serial: 0,\n    session: `${Date.now()}-${Math.random()}`,\n    pendingStop: true,\n    reason: \"Bereit; Tempomat ausgeschaltet\"\n}, \"memory\");\n",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "6d560d867c410002",
+    "type": "ui_button",
+    "z": "e3e367227d20fc75",
+    "name": "Tempomat EIN / AUS",
+    "x": 930,
+    "y": 1280,
+    "wires": [
+      [
+        "6d560d867c410001"
+      ]
+    ],
+    "group": "ui_group_motor",
+    "order": 9,
+    "width": 9,
+    "height": 1,
+    "passthru": false,
+    "label": "{{msg.label || \"Tempomat: AUS\"}}",
+    "tooltip": "Ein/Aus; Ausschalten fordert Hard-STOP an",
+    "color": "#ffffff",
+    "bgcolor": "{{msg.background || \"#616161\"}}",
+    "className": "",
+    "icon": "speed",
+    "payload": "toggle",
+    "payloadType": "str",
+    "topic": "cruise_toggle",
+    "topicType": "str"
+  },
+  {
+    "id": "6d560d867c410003",
+    "type": "ui_slider",
+    "z": "e3e367227d20fc75",
+    "name": "Tempomat Sollgeschwindigkeit",
+    "x": 950,
+    "y": 1360,
+    "wires": [
+      [
+        "6d560d867c410001"
+      ]
+    ],
+    "label": "Geschwindigkeit {{value | number:1}} kn",
+    "tooltip": "0 bis4kn;0kn fordert Hard-STOP an",
+    "group": "ui_group_motor",
+    "order": 10,
+    "width": 9,
+    "height": 1,
+    "passthru": false,
+    "outs": "end",
+    "topic": "cruise_setpoint",
+    "topicType": "str",
+    "min": 0,
+    "max": 4,
+    "step": 0.1,
+    "className": ""
+  },
+  {
+    "id": "6d560d867c410004",
+    "type": "ui_text",
+    "z": "e3e367227d20fc75",
+    "name": "PID-Status / SOG / P-I-D",
+    "x": 940,
+    "y": 1440,
+    "wires": [],
+    "group": "ui_group_motor",
+    "order": 11,
+    "width": 9,
+    "height": 2,
+    "label": "Tempomat",
+    "format": "{{msg.payload}}",
+    "layout": "col-center",
+    "className": "",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#000000"
+  },
+  {
+    "id": "6d560d867c410005",
+    "type": "signalk-subscribe",
+    "z": "e3e367227d20fc75",
+    "name": "SOG m/s (alle Samples, mit Zeitstempel)",
+    "x": 210,
+    "y": 1280,
+    "wires": [
+      [
+        "6d560d867c410001"
+      ]
+    ],
+    "mode": "sendAll",
+    "flatten": true,
+    "context": "vessels.self",
+    "path": "navigation.speedOverGround",
+    "source": "",
+    "period": "200"
+  },
+  {
+    "id": "6d560d867c410006",
+    "type": "inject",
+    "z": "e3e367227d20fc75",
+    "name": "Tempomat Regeltakt200ms",
+    "x": 190,
+    "y": 1360,
+    "wires": [
+      [
+        "6d560d867c410001"
+      ]
+    ],
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "0.2",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "cruise_tick"
+  },
+  {
+    "id": "6d560d867c410007",
+    "type": "inject",
+    "z": "e3e367227d20fc75",
+    "name": "Tempomat UI initialisieren",
+    "x": 190,
+    "y": 1440,
+    "wires": [
+      [
+        "6d560d867c410001"
+      ]
+    ],
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 0.6,
+    "topic": "cruise_init"
+  },
+  {
+    "id": "6d560d867c410008",
+    "type": "comment",
+    "z": "e3e367227d20fc75",
+    "name": "PID / Hard-STOP / Rueckmeldung",
+    "x": 320,
+    "y": 1200,
+    "wires": [],
+    "info": "Fahrt: -100..100 % Drehzahlsollwert ueber LispBM, CAN-ID29.\nSTOP (HARD): expliziter LispBM-Befehl; Motorloop bremst mit dem maximal konfigurierten Bremsstrom (set-brake-rel1.0), Firmwarelimits bleiben aktiv.\nVoraussetzung: beigelegtes LispBM/tronic250r.lisp auf CAN29 installieren. Alter Empfaenger kennt Hard-STOP und Quellenrueckmeldung nicht.\nReiner SOG-PID mit Ausgang0..100 %, keine zweite Regelstufe.\nPoti/WiFi-Quelle wird vom Empfaenger nach Anwendung zurueckgemeldet. PID-Folgebefehle koennen eine Potiuebernahme nicht ueberschreiben.\nStandard-Signal-K-state und transmission.gear plus aussagekraeftige Custom-Statuspfade. Motorbewegung, Anforderung und angewandter Modus bleiben unterscheidbar.\nRekuperations-, Brake- und Handbrake-Bedienelemente sowie deren Konfiguration sind entfernt.\nMotor einschalten, frische SOG, Motortelemetrie und Quellenrueckmeldung abwarten, Geschwindigkeit waehlen, Tempomat einschalten.\nSTOP, Motor-Aus, Tempomat-Aus und Datenfehler: Hard-STOP; PID beendet. Manueller Slider beendetPID; Nullstellung fordertHard-STOP an.\nPotiuebernahme beendetPID ohne Gegenbefehl; fuer erneuteWiFiuebernahme explizitTempomat/Handreglerbetatigen.\nCMD1:WiFiFahrt/acquire;CMD2:Hard-STOP/acquire;CMD3:Abfrage;CMD4:Folgebefehl nur beiWiFi-Besitz. Rueckmeldung129/v1 mitQuelle,Modus,Sollwert.\nPoti-Kalibrierung/Filter/100mV/100ms/Last-command-holds bleiben im Lisp erhalten. Keine Node-RED-Fahrtwiederholung ausserPID.\nPID:Kp100/Ki5/Kd10, SOG/D-Filter0.5s, Takt0.2s, Ausgang0..100%. Parameter amBoot abstimmen.\nNachDeploy einmalHard-STOP; Tempomat bleibt aus. Storememory/file wieOriginal. ExternerLuefterlink bleibt erhalten.\nInstallation: zuerstLispaufCAN29, dannbestehendenVESC-TabdurchdiesenFlowersetzen. KeinHardwaretestdurchExport."
+  },
+  {
+    "id": "6d560d867c410009",
+    "type": "function",
+    "z": "e3e367227d20fc75",
+    "name": "SignalK-Motorstatus -> Anzeige",
+    "x": 1290,
+    "y": 1240,
+    "wires": [
+      [
+        "6d560d867c41000a"
+      ]
+    ],
+    "func": "const item=msg.payload?.updates?.flatMap(u=>u.values||[]).find(v=>v.path===\"propulsion.torqeedo.controller.controlStatus\");\nreturn item?{payload:item.value}:null;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": []
+  },
+  {
+    "id": "6d560d867c41000a",
+    "type": "ui_text",
+    "z": "e3e367227d20fc75",
+    "name": "Quelle und Motorstatus (VESC-Rueckmeldung)",
+    "x": 1540,
+    "y": 1240,
+    "wires": [],
+    "group": "ui_group_motor",
+    "order": 12,
+    "width": 9,
+    "height": 3,
+    "label": "Motor / Steuerquelle",
+    "format": "{{msg.payload}}",
+    "layout": "col-center",
+    "className": "",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#000000"
   }
 ]
