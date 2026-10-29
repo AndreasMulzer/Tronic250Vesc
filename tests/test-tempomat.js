@@ -144,7 +144,7 @@ test('SOG converts m/s to knots and ignores another vessel', () => {
 test('setpoint is bounded, numeric, rounded and saved without enabled state', () => {
     const h = harness(); h.send('cruise_setpoint', 1.26);
     assert.equal(h.state().targetKn, 1.3);
-    assert.deepEqual(h.flow.get('vescCruiseConfig', 'file'), {targetKn: 1.3});
+    assert.deepEqual(h.flow.get('vescCruiseConfig', 'file'), {targetKn: 1.3, pid: {kp: 100, ki: 5, kd: 10}});
     for (const bad of [null, '', '2', -0.1, 4.1, NaN, Infinity, {}]) {
         const out = h.send('cruise_setpoint', bad);
         assert.equal(h.state().targetKn, 1.3); assert.equal(out[2].payload, 1.3);

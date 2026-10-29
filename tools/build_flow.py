@@ -12,6 +12,8 @@ control = '6d560d867c410001'
 button = '6d560d867c410002'
 slider = '6d560d867c410003'
 status = '6d560d867c410004'
+tuning = '6d560d867c41000b'
+tuning_group = '6d560d867c41000c'
 
 def code(name):
     return (HERE/name).read_text()
@@ -64,8 +66,8 @@ def add(id, type, name, x, y, wires, **fields):
     nodes.append(dict(id=id, type=type, z=tab, name=name, x=x, y=y, wires=wires, **fields))
 
 add(control, 'function', 'Tempomat + Handbetrieb (PID, kn)', 580, 1380,
-    [['54c6f7bb5b0e0908'], [button], [slider], [status], ['4ade8ad91ac50ceb']],
-    func=code('controller.js'), outputs=5, timeout=0, noerr=0,
+    [['54c6f7bb5b0e0908'], [button], [slider], [status], ['4ade8ad91ac50ceb'], [tuning]],
+    func=code('controller.js'), outputs=6, timeout=0, noerr=0,
     initialize=code('initialize.js'), finalize='', libs=[])
 add(button, 'ui_button', 'Tempomat EIN / AUS', 930, 1280, [[control]],
     group='ui_group_motor', order=9, width=9, height=1, passthru=False,
@@ -93,7 +95,7 @@ STOP, Motor-Aus, Tempomat-Aus und Datenfehler: Hard-STOP; PID beendet. Manueller
 Potiuebernahme beendetPID ohne Gegenbefehl; fuer erneuteWiFiuebernahme explizitTempomat/Handreglerbetatigen.
 CMD1:WiFiFahrt/acquire;CMD2:Hard-STOP/acquire;CMD3:Abfrage;CMD4:Folgebefehl nur beiWiFi-Besitz. Rueckmeldung129/v1 mitQuelle,Modus,Sollwert.
 Poti-Kalibrierung/Filter/100mV/100ms/Last-command-holds bleiben im Lisp erhalten. Keine Node-RED-Fahrtwiederholung ausserPID.
-PID:Kp100/Ki5/Kd10, SOG/D-Filter0.5s, Takt0.2s, Ausgang0..100%. Parameter amBoot abstimmen.
+PID-Startwerte:Kp100/Ki5/Kd10. Dashboard Motor/Reglerparameter:Werte bearbeiten und Uebernehmen&speichern. Persistenz im file-Kontext; I/D-Zustand bleibt bei laufender Aenderung erhalten. SOG/D-Filter0.5s, Takt0.2s, Ausgang0..100%.
 NachDeploy einmalHard-STOP; Tempomat bleibt aus. Storememory/file wieOriginal. ExternerLuefterlink bleibt erhalten.
 Installation: zuerstLispaufCAN29, dannbestehendenVESC-TabdurchdiesenFlowersetzen. KeinHardwaretestdurchExport.''')
 add('6d560d867c410009', 'function', 'SignalK-Motorstatus -> Anzeige', 1290, 1240, [['6d560d867c41000a']],
@@ -103,6 +105,11 @@ add('6d560d867c41000a', 'ui_text', 'Quelle und Motorstatus (VESC-Rueckmeldung)',
     group='ui_group_motor', order=12, width=9, height=3, label='Motor / Steuerquelle',
     format='{{msg.payload}}', layout='col-center', className='', style=False,
     font='', fontSize=16, color='#000000')
+nodes.append(dict(id=tuning_group, type='ui_group', name='Reglerparameter', tab='ui_tab_motor',
+    order=2, disp=True, width='9', collapse=False, className=''))
+add(tuning, 'ui_template', 'PID-Reglerparameter bearbeiten und speichern', 950, 1540, [[control]],
+    group=tuning_group, order=1, width=9, height=6, format=code('pid-settings.html'),
+    storeOutMessages=False, fwdInMessages=False, resendOnRefresh=True, templateScope='local', className='')
 
 (ROOT/'NodeRED/flow.json').write_text(json.dumps(nodes, ensure_ascii=False, indent=2)+'\n')
 print(f'Created {len(nodes)} nodes; removed {len(removed)} obsolete UI nodes.')

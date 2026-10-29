@@ -1,10 +1,9 @@
 // Reiner PID: u = Kp * e + Integral(Ki * e) - Kd * d(SOG)/dt.
 // Ausgang bleibt der vorhandene LispBM-Drehzahlsollwert in Prozent.
 // Startwerte fuer Probefahrt; keine am Boot validierte Abstimmung.
+const PID_DEFAULTS = {kp: 100, ki: 5, kd: 10};
+const PID_LIMITS = {kp: 10000, ki: 1000, kd: 10000};
 const CFG = {
-    KP: 100,                 // Prozentpunkte / kn
-    KI: 5,                   // Prozentpunkte / (kn * s)
-    KD: 10,                  // Prozentpunkte * s / kn
     FILTER_TAU_S: 0.5,       // SOG-Tiefpass
     D_FILTER_TAU_S: 0.5,     // Tiefpass der gemessenen SOG-Aenderungsrate
     MAX_PERCENT: 100,
@@ -18,10 +17,21 @@ const CFG = {
 const now = Date.now();
 const s = flow.get("vescCruise", "memory");
 if (!s) return null; // On Start muss vor den Nachrichten gelaufen sein.
+s.pid ??= {...PID_DEFAULTS};
 const v = flow.get("vesc", "memory") || {};
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const numeric = n => typeof n === "number" && Number.isFinite(n);
-let drive = null, slider = null, manualUi = null;
+let drive = null, slider = null, manualUi = null, tuningUi = null;
+
+function tuningReply(ok, message, requestId) {
+    const payload = {pid: {...s.pid}, ok, message, session: s.session};
+    if (typeof requestId === "string") payload.requestId = requestId;
+    return {topic: "cruise_pid_state", payload};
+}
+function savedConfig() {
+    const config = flow.get("vescCruiseConfig", "file");
+    return config && typeof config === "object" && !Array.isArray(config) ? config : {};
+}
 
 function command(percent, cruise, hardStop = false) {
     s.serial += 1;
@@ -84,15 +94,15 @@ function pid(dt) {
     const problem = motorProblem() || sogProblem();
     if (problem) { cancel(problem, true); return; }
     const error = s.targetKn - s.filteredKn;
-    const p = CFG.KP * error;
+    const p = s.pid.kp * error;
     // D nur aus Messwertaenderungen, damit Sollwertspruenge keinen D-Stoss erzeugen.
-    const d = -CFG.KD * s.derivativeKnS;
+    const d = -s.pid.kd * s.derivativeKnS;
     const beforeIntegration = p + s.integral + d;
     // Klassisches Clamping-Anti-Windup an den tatsaechlichen Ausgangsgrenzen.
     // Bei Saettigung nur integrieren, wenn der Fehler die Saettigung abbaut.
     if (!((beforeIntegration >= CFG.MAX_PERCENT && error > 0) ||
           (beforeIntegration <= 0 && error < 0))) {
-        s.integral = clamp(s.integral + CFG.KI * error * dt,
+        s.integral = clamp(s.integral + s.pid.ki * error * dt,
                            -CFG.MAX_PERCENT, CFG.MAX_PERCENT);
     }
     s.errorKn = error;
@@ -109,8 +119,40 @@ if (s.pendingStop) {
     s.pendingStop = false;
     cancel("Nach Deploy ausgeschaltet", true);
 }
+if (!s.pidUiPublished) tuningUi = tuningReply(true, "Aktive Reglerparameter geladen");
 
 switch (msg.topic) {
+case "cruise_pid_config": {
+    const values = msg.payload;
+    let invalid = "";
+    for (const key of ["kp", "ki", "kd"]) {
+        const value = values && typeof values === "object" && !Array.isArray(values) ? values[key] : undefined;
+        if (!numeric(value) || value < 0 || value > PID_LIMITS[key]) {
+            invalid = `${key.toUpperCase()} muss eine Zahl von 0 bis ${PID_LIMITS[key]} sein`;
+            break;
+        }
+    }
+    if (invalid) {
+        tuningUi = tuningReply(false, invalid, msg.requestId);
+        break;
+    }
+    const next = {kp: values.kp, ki: values.ki, kd: values.kd};
+    try {
+        flow.set("vescCruiseConfig", {...savedConfig(), targetKn: s.targetKn, pid: {...next}}, "file");
+    } catch (error) {
+        tuningUi = tuningReply(false, "Speichern fehlgeschlagen: " + error.message, msg.requestId);
+        break;
+    }
+    s.pid = next;
+    // I und Messwert-Steigung bleiben erhalten. Die Bearbeitung ist kein Acquire.
+    if (s.enabled) {
+        const elapsed = now - s.lastTickMs;
+        if (elapsed < 0 || elapsed > CFG.MAX_TICK_GAP_MS) cancel("Regeltakt unterbrochen", true);
+        else pid(0);
+    }
+    tuningUi = tuningReply(true, "Reglerparameter übernommen und gespeichert", msg.requestId);
+    break;
+}
 case "navigation.speedOverGround": {
     if (msg.context !== "vessels.self") { if (drive) break; return null; }
     const stamp = typeof msg.timestamp === "string" ? Date.parse(msg.timestamp) : NaN;
@@ -153,8 +195,15 @@ case "cruise_setpoint": {
         slider = {payload: s.targetKn};
         break;
     }
-    s.targetKn = Math.round(msg.payload * 10) / 10;
-    flow.set("vescCruiseConfig", {targetKn: s.targetKn}, "file");
+    const target = Math.round(msg.payload * 10) / 10;
+    try {
+        flow.set("vescCruiseConfig", {...savedConfig(), targetKn: target, pid: {...s.pid}}, "file");
+    } catch (error) {
+        node.error("Sollwert konnte nicht gespeichert werden: " + error.message, msg);
+        slider = {payload: s.targetKn};
+        break;
+    }
+    s.targetKn = target;
     if (s.enabled) {
         const elapsed = now - s.lastTickMs;
         if (elapsed < 0 || elapsed > CFG.MAX_TICK_GAP_MS) cancel("Regeltakt unterbrochen", true);
@@ -199,6 +248,7 @@ case "cruise_engine_off":
     break;
 case "cruise_init":
     slider = {payload: s.targetKn};
+    tuningUi = tuningReply(true, "Aktive Reglerparameter geladen");
     break;
 case "vesc_control_feedback": {
     const feedback = v.status.control;
@@ -231,8 +281,9 @@ default:
     return null;
 }
 
+if (tuningUi) s.pidUiPublished = true;
 flow.set("vescCruise", s, "memory");
 const fresh = !sogProblem();
 const text = `${s.enabled ? "EIN" : "AUS"} | Soll ${s.targetKn.toFixed(1)} kn | SOG ${fresh ? s.sogKn.toFixed(2) : "--"} kn | Sollwert ${s.outputPercent.toFixed(1)} % | P ${s.pTerm.toFixed(1)} / I ${s.integral.toFixed(1)} / D ${s.dTerm.toFixed(1)} | ${s.reason}`;
 node.status({fill: s.enabled ? "green" : "grey", shape: s.enabled ? "dot" : "ring", text});
-return [drive, {payload: s.enabled, label: s.enabled ? "Tempomat: EIN" : "Tempomat: AUS", background: s.enabled ? "#2e7d32" : "#616161"}, slider, {payload: text}, manualUi];
+return [drive, {payload: s.enabled, label: s.enabled ? "Tempomat: EIN" : "Tempomat: AUS", background: s.enabled ? "#2e7d32" : "#616161"}, slider, {payload: text}, manualUi, tuningUi];

@@ -3,7 +3,7 @@
 Die beiden Dateien gehören zusammen:
 
 - [LispBM/tronic250r.lisp](../LispBM/tronic250r.lisp): aktualisierter Empfänger für den Tronic 250R mit VESC-Firmware 6.02, CAN-ID **29**.
-- [NodeRED/flow.json](../NodeRED/flow.json): vollständiger Node-RED-Flow mit **60 Knoten**. Die drei Bedienelemente für Rekuperation, Brake und Handbrake sowie deren Konfiguration sind entfernt.
+- [NodeRED/flow.json](../NodeRED/flow.json): vollständiger Node-RED-Flow mit **62 Knoten**, einschließlich editierbarer PID-Parameter. Die drei Bedienelemente für Rekuperation, Brake und Handbrake sowie deren Konfiguration sind entfernt.
 
 ## Installation
 
@@ -45,19 +45,42 @@ Sollgeschwindigkeit **0 bis 4 kn**, Schrittweite **0,1 kn**; Ein/Aus über **Tem
 
 ```text
 e = Sollgeschwindigkeit − gefilterte SOG              [kn]
-P = 100 × e
-I = I + 5 × e × dt                                   [Anti-Windup]
-D = −10 × gefilterte Änderung der SOG pro Sekunde
+P = Kp × e
+I = I + Ki × e × dt                                  [Anti-Windup]
+D = −Kd × gefilterte Änderung der SOG pro Sekunde
 Drehzahlsollwert = begrenze(P + I + D, 0 %, 100 %)
 ```
 
-Beim Einschalten starten I und D bei null. **1 kn positive Abweichung erzeugt damit sofort 100 %**. Während der Fahrt bestimmen alle drei Anteile den Ausgang. Der D-Anteil verwendet die Messwertänderung; Sollwertsprünge erzeugen keinen D-Stoß. SOG und ihre Steigung werden jeweils mit **0,5 s** Zeitkonstante gefiltert. Es gibt keine Stellwertrampe. `KP=100`, `KI=5`, `KD=10` stehen im Block `CFG` des PID-Knotens und sind noch auf dem Boot abzustimmende Startwerte.
+Beim Einschalten starten I und D bei null. Mit dem Startwert **Kp=100** erzeugt **1 kn positive Abweichung sofort 100 %**. Während der Fahrt bestimmen alle drei Anteile den Ausgang. Der D-Anteil verwendet die Messwertänderung; Sollwertsprünge erzeugen keinen D-Stoß. SOG und ihre Steigung werden jeweils mit **0,5 s** Zeitkonstante gefiltert. Es gibt keine Stellwertrampe. Die Startwerte **Kp=100, Ki=5, Kd=10** sind noch auf dem Boot abzustimmen.
+
+### Kp, Ki und Kd im Dashboard einstellen
+
+Unter **Motor → Reglerparameter** stehen drei Zahlenfelder mit den aktiven Werten.
+Werte bearbeiten und **Übernehmen & speichern** klicken. **Verwerfen** setzt
+den Eingabeentwurf auf die aktuell verwendeten Werte zurück. Ungespeicherte
+Eingaben ändern den Regler nicht und werden durch Statusmeldungen nicht überschrieben.
+
+| Feld | Startwert | Einstellbereich | Einheit |
+| --- | ---: | ---: | --- |
+| Kp | 100 | 0–10.000 | Prozentpunkte/kn |
+| Ki | 5 | 0–1.000 | Prozentpunkte/(kn·s) |
+| Kd | 10 | 0–10.000 | Prozentpunkte·s/kn |
+
+Die Werte werden gemeinsam geprüft und im Datei-Kontext `vescCruiseConfig.pid`
+gespeichert. Sie bleiben zusammen mit dem Geschwindigkeitssollwert nach einem
+Neustart oder Deploy erhalten. Gespeicherte Werte von null sind gültig;
+fehlende oder ungültige gespeicherte Werte erhalten den jeweiligen Startwert.
+
+Bei laufendem Tempomat gelten gespeicherte Änderungen sofort. Integral und
+D-Filterzustand bleiben erhalten. Speichern schaltet den Tempomaten nicht ein
+und fordert keine erneute WiFi-Übernahme an. Die SOG-/D-Filterzeitkonstanten
+bleiben im `CFG`-Block des Function-Knotens **Tempomat + Handbetrieb (PID, kn)**.
 
 Bei **0 kn Sollgeschwindigkeit** bleibt der Tempomat eingeschaltet und fordert **Hard-STOP** an; ein positiver Sollwert lässt ihn wieder regeln. Ein durch den laufenden PID berechneter Ausgang von 0 % bei positivem Geschwindigkeitssollwert bleibt dagegen ein gewöhnlicher Drehzahlsollwert. Der PID steuert ausschließlich vorwärts; rückwärts wird manuell gefahren.
 
 Signal K liefert `navigation.speedOverGround` für `vessels.self` in m/s; der Regler rechnet intern in kn um. Daten müssen neue Quellzeitstempel haben. Bei mehreren GPS-Quellen im Subscribe-Knoten eine passende Quelle einstellen. SOG beschreibt den Betrag der Geschwindigkeit über Grund; Strömung und Segeln können das Boot auch ohne Vorwärtsschub über dem Sollwert halten.
 
-Ein aktiver Tempomat bricht mit Hard-STOP ab bei ungültiger beziehungsweise mehr als **3 s** alter SOG, fehlender beziehungsweise mehr als **2,5 s** alter VESC-Telemetrie, VESC-Fehler, mehr als **1,5 s** alter Steuerrückmeldung oder einer Regeltaktlücke über **1,5 s**. Anschließend ist ausdrückliches Wiedereinschalten erforderlich. Nach Deploy bleibt der Tempomat aus; gespeichert wird nur seine Sollgeschwindigkeit. Manuelle Bedienung beendet den Tempomaten und übernimmt direkt mit dem gewählten Befehl.
+Ein aktiver Tempomat bricht mit Hard-STOP ab bei ungültiger beziehungsweise mehr als **3 s** alter SOG, fehlender beziehungsweise mehr als **2,5 s** alter VESC-Telemetrie, VESC-Fehler, mehr als **1,5 s** alter Steuerrückmeldung oder einer Regeltaktlücke über **1,5 s**. Anschließend ist ausdrückliches Wiedereinschalten erforderlich. Nach Deploy bleibt der Tempomat aus; Sollgeschwindigkeit und PID-Parameter werden wiederhergestellt. Manuelle Bedienung beendet den Tempomaten und übernimmt direkt mit dem gewählten Befehl.
 
 ## Dashboard und Signal-K-Status
 
@@ -87,7 +110,7 @@ Die vorhandenen Test-Injects für **0 % / 30 %** laufen jetzt ebenfalls durch Mo
 
 ## Prüfung und Quellen
 
-Lokal bestanden: **45 Node-RED-Funktionstests**, **24 Signal-K-Statustests** und **25 Assertions mit dem offiziellen LispBM-Interpreter aus VESC 6.02**. Die Tests prüfen unter anderem Hard-STOP-Pakete, Quellenübernahme, PID-Folgebefehle, Datenalter und SI-Umrechnung. Motorfunktionen im Lisp-Test sind ersetzt; das belegt keine tatsächliche Bremskraft, Hardwarekommunikation oder Regelgüte auf dem Boot.
+Lokal bestanden: **45 Node-RED-Funktionstests**, **24 Signal-K-Statustests**, **17 Parameter-Tests**, **14 Parameter-UI-Tests** und **25 Assertions mit dem offiziellen LispBM-Interpreter aus VESC 6.02**. Die Tests prüfen unter anderem Hard-STOP-Pakete, Quellenübernahme, PID-Folgebefehle, Datenalter, SI-Umrechnung und das Speichern/Anwenden der Dashboard-Parameter. Motorfunktionen im Lisp-Test sind ersetzt; das belegt keine tatsächliche Bremskraft, Hardwarekommunikation oder Regelgüte auf dem Boot.
 
 - [VESC 6.02 LispBM-Dokumentation](https://github.com/vedderb/bldc/blob/release_6_02/lispBM/README.md)
 - [VESC 6.02: Implementierung von `set-brake-rel`](https://github.com/vedderb/bldc/blob/release_6_02/lispBM/lispif_vesc_extensions.c#L1301-L1306)

@@ -1,0 +1,148 @@
+<div class="vesc-pid-settings">
+  <form name="vescPidForm" novalidate>
+    <div layout="row" layout-wrap>
+      <md-input-container flex="33">
+        <label>Kp [%/kn]</label>
+        <input aria-label="Kp" type="number" step="any" min="0" max="10000"
+               ng-model="draft.kp" ng-change="markPidDirty()" ng-disabled="!ready || pending" required>
+      </md-input-container>
+      <md-input-container flex="33">
+        <label>Ki [%/(kn·s)]</label>
+        <input aria-label="Ki" type="number" step="any" min="0" max="1000"
+               ng-model="draft.ki" ng-change="markPidDirty()" ng-disabled="!ready || pending" required>
+      </md-input-container>
+      <md-input-container flex="33">
+        <label>Kd [%·s/kn]</label>
+        <input aria-label="Kd" type="number" step="any" min="0" max="10000"
+               ng-model="draft.kd" ng-change="markPidDirty()" ng-disabled="!ready || pending" required>
+      </md-input-container>
+    </div>
+    <div layout="row" layout-wrap>
+      <md-button class="md-raised md-primary" type="button" ng-click="savePid()"
+                 ng-disabled="!ready || pending || !dirty || vescPidForm.$invalid">
+        Übernehmen &amp; speichern
+      </md-button>
+      <md-button type="button" ng-click="discardPid()" ng-disabled="!ready || pending || !dirty">
+        Verwerfen
+      </md-button>
+    </div>
+  </form>
+  <div class="vesc-pid-applied" ng-if="ready">
+    Aktiv: Kp {{applied.kp}} · Ki {{applied.ki}} · Kd {{applied.kd}}
+  </div>
+  <div class="vesc-pid-note">% bezeichnet Prozentpunkte des Drehzahlsollwerts.</div>
+  <div class="vesc-pid-message" ng-class="{'vesc-pid-error': messageKind === 'error'}" aria-live="polite">
+    {{message || 'Reglerparameter werden geladen …'}}
+  </div>
+</div>
+<style>
+  .vesc-pid-settings md-input-container { box-sizing: border-box; padding-right: 10px; margin-bottom: 8px; }
+  .vesc-pid-settings .vesc-pid-applied { margin: 8px 0 4px; font-weight: 500; }
+  .vesc-pid-settings .vesc-pid-note { opacity: .75; font-size: 12px; }
+  .vesc-pid-settings .vesc-pid-message { margin-top: 8px; min-height: 20px; }
+  .vesc-pid-settings .vesc-pid-error { color: #c62828; }
+</style>
+<script>
+(function (scope) {
+    var fields = ['kp', 'ki', 'kd'];
+    var limits = {kp: 10000, ki: 1000, kd: 10000};
+    var client = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    var sequence = 0, pendingId = null, timeout = null;
+    scope.ready = false;
+    scope.pending = false;
+    scope.dirty = false;
+    scope.message = '';
+    scope.messageKind = 'info';
+    scope.draft = {};
+    scope.applied = {};
+
+    function copy(pid) {
+        return {kp: pid.kp, ki: pid.ki, kd: pid.kd};
+    }
+    function valid(pid) {
+        return pid && fields.every(function (key) {
+            return typeof pid[key] === 'number' && isFinite(pid[key]) && pid[key] >= 0 && pid[key] <= limits[key];
+        });
+    }
+    function updateDirty() {
+        scope.dirty = scope.ready && fields.some(function (key) { return scope.draft[key] !== scope.applied[key]; });
+    }
+    function clearPending() {
+        if (timeout !== null) clearTimeout(timeout);
+        timeout = null;
+        pendingId = null;
+        scope.pending = false;
+    }
+    scope.markPidDirty = function () {
+        updateDirty();
+        scope.messageKind = 'info';
+        scope.message = scope.dirty ? 'Änderungen noch nicht übernommen.' : 'Eingaben entsprechen den aktiven Werten.';
+    };
+    scope.discardPid = function () {
+        if (!scope.ready || scope.pending) return;
+        scope.draft = copy(scope.applied);
+        updateDirty();
+        scope.messageKind = 'info';
+        scope.message = 'Eingaben auf aktive Werte zurückgesetzt.';
+    };
+    scope.savePid = function () {
+        if (!scope.ready || scope.pending || !scope.dirty) return;
+        if (!valid(scope.draft)) {
+            scope.messageKind = 'error';
+            scope.message = 'Bitte gültige, nichtnegative Werte innerhalb der Feldgrenzen eingeben.';
+            return;
+        }
+        var requestId = client + '-' + (++sequence);
+        pendingId = requestId;
+        scope.pending = true;
+        scope.messageKind = 'info';
+        scope.message = 'Parameter werden übernommen …';
+        timeout = setTimeout(function () {
+            scope.$applyAsync(function () {
+                if (pendingId !== requestId) return;
+                clearPending();
+                scope.messageKind = 'error';
+                scope.message = 'Keine Bestätigung erhalten. Aktive Werte prüfen und bei Bedarf erneut speichern.';
+            });
+        }, 5000);
+        try {
+            scope.send({topic: 'cruise_pid_config', payload: copy(scope.draft), requestId: requestId});
+        } catch (err) {
+            clearPending();
+            scope.messageKind = 'error';
+            scope.message = 'Parameter konnten nicht gesendet werden. Bitte erneut versuchen.';
+        }
+    };
+    var unwatch = scope.$watch('msg', function (msg) {
+        if (!msg || msg.topic !== 'cruise_pid_state' || !msg.payload || !valid(msg.payload.pid)) return;
+        var response = msg.payload;
+        var ownReply = pendingId !== null && response.requestId === pendingId;
+        var preserveDraft = scope.ready && (scope.dirty || scope.pending);
+        scope.applied = copy(response.pid);
+        if (!scope.ready) {
+            scope.draft = copy(scope.applied);
+            scope.ready = true;
+            scope.message = 'Aktive Reglerparameter geladen.';
+        } else if (!preserveDraft) {
+            scope.draft = copy(scope.applied);
+        }
+        if (ownReply) {
+            clearPending();
+            if (response.ok === true) {
+                scope.draft = copy(scope.applied);
+                scope.messageKind = 'success';
+                scope.message = response.message || 'Parameter übernommen und gespeichert.';
+            } else {
+                scope.messageKind = 'error';
+                scope.message = response.message || 'Parameter wurden nicht übernommen.';
+            }
+        }
+        // Replay/other browsers refresh clean fields; unsaved or pending edits stay.
+        updateDirty();
+    });
+    scope.$on('$destroy', function () {
+        clearPending();
+        if (typeof unwatch === 'function') unwatch();
+    });
+})(scope);
+</script>
