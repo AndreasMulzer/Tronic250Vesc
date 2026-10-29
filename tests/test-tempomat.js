@@ -144,7 +144,7 @@ test('SOG converts m/s to knots and ignores another vessel', () => {
 test('setpoint is bounded, numeric, rounded and saved without enabled state', () => {
     const h = harness(); h.send('cruise_setpoint', 1.26);
     assert.equal(h.state().targetKn, 1.3);
-    assert.deepEqual(h.flow.get('vescCruiseConfig', 'file'), {targetKn: 1.3, pid: {kp: 100, ki: 5, kd: 10}});
+    assert.deepEqual(h.flow.get('vescCruiseConfig', 'file'), {targetKn: 1.3, pid: {kp: 100, ki: 5, kd: 10}, sogWindowSize: 10});
     for (const bad of [null, '', '2', -0.1, 4.1, NaN, Infinity, {}]) {
         const out = h.send('cruise_setpoint', bad);
         assert.equal(h.state().targetKn, 1.3); assert.equal(out[2].payload, 1.3);
@@ -223,7 +223,7 @@ test('measurement derivative damps acceleration, reverses sign on deceleration a
         const h = harness(); h.arm(0.5, start);
         const out = h.tick(1000, next)[0];
         const alpha = 1 - Math.exp(-1 / 0.5);
-        const filtered = start + alpha * (next - start);
+        const filtered = (start + next) / 2; // Warm-up mean of the two real samples.
         const derivative = alpha * (filtered - start); // 1 second between GPS timestamps
         assert.ok(Math.abs(h.state().filteredKn - filtered) < 1e-9);
         assert.ok(Math.abs(h.state().derivativeKnS - derivative) < 1e-9);
@@ -260,10 +260,13 @@ test('PID remains bounded and lower saturation does not accumulate a negative in
     assert.ok(Math.abs(h.send('cruise_setpoint', 2.5)[0].payload - 50) < 1e-9);
 });
 
-test('hypothetical first-order boat model converges with GPS at 1 Hz and PID at 5 Hz', () => {
+test('hypothetical first-order boat model converges with model-specific PID gains and ten-sample SOG', () => {
     // Software-only regression: maximum 5 kn, time constant 5 seconds.
     // These assumed plant values make no claim about the physical boat.
     const h = harness(); let speed = 0;
+    // Gains apply only to this assumed software plant with the added sample lag;
+    // they neither change shipped defaults nor claim physical boat tuning.
+    h.send('cruise_pid_config', {kp: 50, ki: 2, kd: 10, sogWindowSize: 10});
     let output = h.arm(2, speed)[0].payload;
     assert.equal(output, 100);
     let desaturated = false;

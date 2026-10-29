@@ -4,7 +4,8 @@
 const PID_DEFAULTS = {kp: 100, ki: 5, kd: 10};
 const PID_LIMITS = {kp: 10000, ki: 1000, kd: 10000};
 const CFG = {
-    FILTER_TAU_S: 0.5,       // SOG-Tiefpass
+    SOG_WINDOW_DEFAULT: 10,  // Gleitender Mittelwert aus echten GPS-Messwerten
+    SOG_WINDOW_MAX: 100,
     D_FILTER_TAU_S: 0.5,     // Tiefpass der gemessenen SOG-Aenderungsrate
     MAX_PERCENT: 100,
     SOG_MAX_AGE_MS: 3000,
@@ -18,19 +19,31 @@ const now = Date.now();
 const s = flow.get("vescCruise", "memory");
 if (!s) return null; // On Start muss vor den Nachrichten gelaufen sein.
 s.pid ??= {...PID_DEFAULTS};
+s.sogWindowSize ??= CFG.SOG_WINDOW_DEFAULT;
+s.sogSamplesKn ??= [];
 const v = flow.get("vesc", "memory") || {};
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const numeric = n => typeof n === "number" && Number.isFinite(n);
 let drive = null, slider = null, manualUi = null, tuningUi = null;
 
 function tuningReply(ok, message, requestId) {
-    const payload = {pid: {...s.pid}, ok, message, session: s.session};
+    const payload = {pid: {...s.pid}, sogWindowSize: s.sogWindowSize, ok, message, session: s.session};
     if (typeof requestId === "string") payload.requestId = requestId;
     return {topic: "cruise_pid_state", payload};
 }
 function savedConfig() {
     const config = flow.get("vescCruiseConfig", "file");
     return config && typeof config === "object" && !Array.isArray(config) ? config : {};
+}
+function resetSogWindow() {
+    s.sogSamplesKn = [];
+    s.filteredKn = null;
+    s.derivativeKnS = 0;
+}
+function updateSogMean() {
+    s.filteredKn = s.sogSamplesKn.length
+        ? s.sogSamplesKn.reduce((sum, value) => sum + value, 0) / s.sogSamplesKn.length
+        : null;
 }
 
 function command(percent, cruise, hardStop = false) {
@@ -62,7 +75,7 @@ function cancel(reason, stop) {
     else s.serial += 1;
 }
 function sogProblem() {
-    if (!numeric(s.sogKn) || !numeric(s.sogTimestampMs)) return "SOG fehlt/ungueltig";
+    if (!numeric(s.sogKn) || !numeric(s.filteredKn) || !numeric(s.sogTimestampMs)) return "SOG fehlt/ungueltig";
     if (now - s.sogReceivedMs > CFG.SOG_MAX_AGE_MS ||
         now - s.sogTimestampMs > CFG.SOG_MAX_AGE_MS ||
         s.sogTimestampMs - now > CFG.FUTURE_TOLERANCE_MS) return "SOG veraltet/Zeitstempel ungueltig";
@@ -136,15 +149,28 @@ case "cruise_pid_config": {
         tuningUi = tuningReply(false, invalid, msg.requestId);
         break;
     }
+    const windowSize = Object.prototype.hasOwnProperty.call(values, "sogWindowSize")
+        ? values.sogWindowSize : s.sogWindowSize;
+    if (!Number.isInteger(windowSize) || windowSize < 1 || windowSize > CFG.SOG_WINDOW_MAX) {
+        tuningUi = tuningReply(false, `SOG-Mittelwert muss eine ganze Zahl von 1 bis ${CFG.SOG_WINDOW_MAX} sein`, msg.requestId);
+        break;
+    }
     const next = {kp: values.kp, ki: values.ki, kd: values.kd};
     try {
-        flow.set("vescCruiseConfig", {...savedConfig(), targetKn: s.targetKn, pid: {...next}}, "file");
+        flow.set("vescCruiseConfig", {...savedConfig(), targetKn: s.targetKn, pid: {...next}, sogWindowSize: windowSize}, "file");
     } catch (error) {
         tuningUi = tuningReply(false, "Speichern fehlgeschlagen: " + error.message, msg.requestId);
         break;
     }
     s.pid = next;
-    // I und Messwert-Steigung bleiben erhalten. Die Bearbeitung ist kein Acquire.
+    if (windowSize !== s.sogWindowSize) {
+        s.sogWindowSize = windowSize;
+        s.sogSamplesKn = s.sogSamplesKn.slice(-windowSize);
+        updateSogMean();
+        // Ein geaendertes Fenster ist keine gemessene Beschleunigung.
+        s.derivativeKnS = 0;
+    }
+    // I bleibt erhalten; bei reiner Gain-Aenderung auch D. Kein Acquire.
     if (s.enabled) {
         const elapsed = now - s.lastTickMs;
         if (elapsed < 0 || elapsed > CFG.MAX_TICK_GAP_MS) cancel("Regeltakt unterbrochen", true);
@@ -159,7 +185,7 @@ case "navigation.speedOverGround": {
     if (!numeric(msg.payload) || msg.payload < 0 || msg.payload > CFG.SOG_MAX_M_S || !Number.isFinite(stamp) ||
         now - stamp > CFG.SOG_MAX_AGE_MS || stamp - now > CFG.FUTURE_TOLERANCE_MS) {
         s.sogKn = null;
-        s.filteredKn = null;
+        resetSogWindow();
         if (s.enabled) cancel("SOG ungueltig/veraltet", true);
         else s.reason = "SOG ungueltig/veraltet";
         break;
@@ -169,17 +195,20 @@ case "navigation.speedOverGround": {
     const kn = msg.payload * 3600 / 1852;
     if (!Number.isFinite(kn)) {
         s.sogKn = null;
+        resetSogWindow();
         if (s.enabled) cancel("SOG ungueltig", true);
         break;
     }
     const sampleDt = numeric(s.sogTimestampMs) ? (stamp - s.sogTimestampMs) / 1000 : 0;
-    if (!numeric(s.filteredKn) || sampleDt <= 0 || sampleDt > CFG.SOG_MAX_AGE_MS / 1000) {
-        s.filteredKn = kn;
-        s.derivativeKnS = 0;
-    } else {
-        const previousFiltered = s.filteredKn;
-        const alpha = 1 - Math.exp(-sampleDt / CFG.FILTER_TAU_S);
-        s.filteredKn += alpha * (kn - s.filteredKn);
+    const receiveGap = now - s.sogReceivedMs;
+    const reset = !numeric(s.filteredKn) || sampleDt <= 0 ||
+        sampleDt > CFG.SOG_MAX_AGE_MS / 1000 || receiveGap < 0 || receiveGap > CFG.SOG_MAX_AGE_MS;
+    const previousFiltered = s.filteredKn;
+    if (reset) resetSogWindow();
+    s.sogSamplesKn.push(kn);
+    if (s.sogSamplesKn.length > s.sogWindowSize) s.sogSamplesKn.shift();
+    updateSogMean();
+    if (!reset) {
         const measuredDerivative = (s.filteredKn - previousFiltered) / sampleDt;
         const dAlpha = 1 - Math.exp(-sampleDt / CFG.D_FILTER_TAU_S);
         s.derivativeKnS += dAlpha * (measuredDerivative - s.derivativeKnS);
@@ -197,7 +226,7 @@ case "cruise_setpoint": {
     }
     const target = Math.round(msg.payload * 10) / 10;
     try {
-        flow.set("vescCruiseConfig", {...savedConfig(), targetKn: target, pid: {...s.pid}}, "file");
+        flow.set("vescCruiseConfig", {...savedConfig(), targetKn: target, pid: {...s.pid}, sogWindowSize: s.sogWindowSize}, "file");
     } catch (error) {
         node.error("Sollwert konnte nicht gespeichert werden: " + error.message, msg);
         slider = {payload: s.targetKn};
@@ -223,7 +252,6 @@ case "cruise_toggle": {
         break;
     }
     s.enabled = true;
-    s.filteredKn = s.sogKn;
     s.derivativeKnS = 0;
     s.integral = 0; // P beim Einschalten nicht mehr durch den Integrator aufheben.
     s.lastTickMs = now;
@@ -284,6 +312,6 @@ default:
 if (tuningUi) s.pidUiPublished = true;
 flow.set("vescCruise", s, "memory");
 const fresh = !sogProblem();
-const text = `${s.enabled ? "EIN" : "AUS"} | Soll ${s.targetKn.toFixed(1)} kn | SOG ${fresh ? s.sogKn.toFixed(2) : "--"} kn | Sollwert ${s.outputPercent.toFixed(1)} % | P ${s.pTerm.toFixed(1)} / I ${s.integral.toFixed(1)} / D ${s.dTerm.toFixed(1)} | ${s.reason}`;
+const text = `${s.enabled ? "EIN" : "AUS"} | Soll ${s.targetKn.toFixed(1)} kn | SOG Ø ${fresh ? s.filteredKn.toFixed(2) : "--"} kn (roh ${fresh ? s.sogKn.toFixed(2) : "--"}; ${s.sogSamplesKn.length}/${s.sogWindowSize} Werte) | Sollwert ${s.outputPercent.toFixed(1)} % | P ${s.pTerm.toFixed(1)} / I ${s.integral.toFixed(1)} / D ${s.dTerm.toFixed(1)} | ${s.reason}`;
 node.status({fill: s.enabled ? "green" : "grey", shape: s.enabled ? "dot" : "ring", text});
 return [drive, {payload: s.enabled, label: s.enabled ? "Tempomat: EIN" : "Tempomat: AUS", background: s.enabled ? "#2e7d32" : "#616161"}, slider, {payload: text}, manualUi, tuningUi];

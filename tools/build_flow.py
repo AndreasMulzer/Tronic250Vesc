@@ -95,7 +95,7 @@ STOP, Motor-Aus, Tempomat-Aus und Datenfehler: Hard-STOP; PID beendet. Manueller
 Potiuebernahme beendetPID ohne Gegenbefehl; fuer erneuteWiFiuebernahme explizitTempomat/Handreglerbetatigen.
 CMD1:WiFiFahrt/acquire;CMD2:Hard-STOP/acquire;CMD3:Abfrage;CMD4:Folgebefehl nur beiWiFi-Besitz. Rueckmeldung129/v1 mitQuelle,Modus,Sollwert.
 Poti-Kalibrierung/Filter/100mV/100ms/Last-command-holds bleiben im Lisp erhalten. Keine Node-RED-Fahrtwiederholung ausserPID.
-PID-Startwerte:Kp100/Ki5/Kd10. Dashboard Motor/Reglerparameter:Werte bearbeiten und Uebernehmen&speichern. Persistenz im file-Kontext; I/D-Zustand bleibt bei laufender Aenderung erhalten. SOG/D-Filter0.5s, Takt0.2s, Ausgang0..100%.
+PID-Startwerte:Kp100/Ki5/Kd10. Dashboard Motor/Reglerparameter:PID-Werte und SOG-Fenster bearbeiten und Uebernehmen&speichern. SOG als gleitender Mittelwert ueber10echteMesswerte(Standard), Fenster1..100. D separat0.5s geglaettet. Persistenz im file-Kontext; I bleibt erhalten, D wird nurbeiFensterwechselzurueckgesetzt. Takt0.2s, Ausgang0..100%.
 NachDeploy einmalHard-STOP; Tempomat bleibt aus. Storememory/file wieOriginal. ExternerLuefterlink bleibt erhalten.
 Installation: zuerstLispaufCAN29, dannbestehendenVESC-TabdurchdiesenFlowersetzen. KeinHardwaretestdurchExport.''')
 add('6d560d867c410009', 'function', 'SignalK-Motorstatus -> Anzeige', 1290, 1240, [['6d560d867c41000a']],
@@ -107,8 +107,8 @@ add('6d560d867c41000a', 'ui_text', 'Quelle und Motorstatus (VESC-Rueckmeldung)',
     font='', fontSize=16, color='#000000')
 nodes.append(dict(id=tuning_group, type='ui_group', name='Reglerparameter', tab='ui_tab_motor',
     order=2, disp=True, width='9', collapse=False, className=''))
-add(tuning, 'ui_template', 'PID-Reglerparameter bearbeiten und speichern', 950, 1540, [[control]],
-    group=tuning_group, order=1, width=9, height=6, format=code('pid-settings.html'),
+add(tuning, 'ui_template', 'PID- und SOG-Parameter bearbeiten und speichern', 950, 1540, [[control]],
+    group=tuning_group, order=1, width=9, height=8, format=code('pid-settings.html'),
     storeOutMessages=False, fwdInMessages=False, resendOnRefresh=True, templateScope='local', className='')
 
 (ROOT/'NodeRED/flow.json').write_text(json.dumps(nodes, ensure_ascii=False, indent=2)+'\n')

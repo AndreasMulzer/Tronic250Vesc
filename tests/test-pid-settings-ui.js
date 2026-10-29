@@ -7,7 +7,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../NodeRED/src/pid-settings.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
-const initial = {kp: 100, ki: 5, kd: 10};
+const initial = {kp: 100, ki: 5, kd: 10, sogWindowSize: 10};
+const settings = (pid, sogWindowSize = 10) => ({...pid, sogWindowSize});
 const plain = value => JSON.parse(JSON.stringify(value));
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('PASS ' + name); }
@@ -30,7 +31,11 @@ function harness() {
     return {
         scope, sent, timers,
         reply(pid = initial, fields = {}) {
-            watch({topic: 'cruise_pid_state', payload: {pid: plain(pid), ok: true, session: 'test', ...fields}});
+            watch({topic: 'cruise_pid_state', payload: {
+                pid: {kp: pid.kp, ki: pid.ki, kd: pid.kd},
+                sogWindowSize: Object.prototype.hasOwnProperty.call(pid, 'sogWindowSize') ? pid.sogWindowSize : 10,
+                ok: true, session: 'test', ...fields
+            }});
         },
         raw(msg) { watch(msg); },
         edit(key, value) { scope.draft[key] = value; scope.markPidDirty(); },
@@ -45,11 +50,12 @@ function harness() {
     };
 }
 
-test('template has three bounded numeric fields and explicit non-submit buttons', () => {
-    for (const name of ['kp', 'ki', 'kd']) assert.match(html, new RegExp('ng-model="draft\\.' + name + '"'));
+test('template has bounded gain fields, an integer sample window and explicit non-submit buttons', () => {
+    for (const name of ['kp', 'ki', 'kd', 'sogWindowSize']) assert.match(html, new RegExp('ng-model="draft\\.' + name + '"'));
     assert.equal((html.match(/step="any"/g) || []).length, 3);
     assert.equal((html.match(/max="10000"/g) || []).length, 2);
     assert.equal((html.match(/max="1000"/g) || []).length, 1);
+    assert.match(html, /step="1" min="1" max="100"/);
     assert.match(html, /type="button" ng-click="savePid\(\)"/);
     assert.match(html, /vescPidForm\.\$invalid/);
     assert.doesNotMatch(html, /ng-submit|ui_form/);
@@ -82,8 +88,8 @@ test('another browser refreshes clean fields without creating a stale draft', ()
     const h = harness(); h.reply();
     const updated = {kp: 200, ki: 3, kd: 12};
     h.reply(updated, {requestId: 'another-browser', message: 'Saved elsewhere'});
-    assert.deepEqual(plain(h.scope.draft), updated);
-    assert.deepEqual(plain(h.scope.applied), updated);
+    assert.deepEqual(plain(h.scope.draft), settings(updated));
+    assert.deepEqual(plain(h.scope.applied), settings(updated));
     assert.equal(h.scope.dirty, false);
     assert.equal(h.sent.length, 0);
 });
@@ -91,8 +97,8 @@ test('another browser refreshes clean fields without creating a stale draft', ()
 test('another browser updates applied values while preserving unsaved inputs', () => {
     const h = harness(); h.reply(); h.edit('kp', 125);
     h.reply({kp: 200, ki: 3, kd: 12}, {requestId: 'another-browser'});
-    assert.deepEqual(plain(h.scope.draft), {kp: 125, ki: 5, kd: 10});
-    assert.deepEqual(plain(h.scope.applied), {kp: 200, ki: 3, kd: 12});
+    assert.deepEqual(plain(h.scope.draft), settings({kp: 125, ki: 5, kd: 10}));
+    assert.deepEqual(plain(h.scope.applied), settings({kp: 200, ki: 3, kd: 12}));
     assert.equal(h.scope.dirty, true);
 });
 
@@ -101,7 +107,7 @@ test('explicit save sends one request and waits for its own successful ACK', () 
     assert.equal(h.sent.length, 1);
     const request = h.sent[0];
     assert.equal(request.topic, 'cruise_pid_config');
-    assert.deepEqual(request.payload, {kp: 100, ki: 7.5, kd: 10});
+    assert.deepEqual(request.payload, settings({kp: 100, ki: 7.5, kd: 10}));
     assert.equal(typeof request.requestId, 'string');
     assert.equal(h.scope.pending, true); assert.equal(h.timers.size, 1);
     h.scope.savePid(); assert.equal(h.sent.length, 1);
@@ -140,14 +146,14 @@ test('invalid values are rejected before sending while zero and exact limits are
     for (const values of [{kp: 0, ki: 0, kd: 0}, {kp: 10000, ki: 1000, kd: 10000}]) {
         const h = harness(); h.reply();
         Object.assign(h.scope.draft, values); h.scope.markPidDirty(); h.scope.savePid();
-        assert.deepEqual(h.sent[0].payload, values);
+        assert.deepEqual(h.sent[0].payload, settings(values));
     }
 });
 
 test('discard resets to current applied values and does not submit', () => {
     const h = harness(); h.reply(); h.edit('kp', 120);
     h.reply({kp: 90, ki: 4, kd: 8}); h.scope.discardPid();
-    assert.deepEqual(plain(h.scope.draft), {kp: 90, ki: 4, kd: 8});
+    assert.deepEqual(plain(h.scope.draft), settings({kp: 90, ki: 4, kd: 8}));
     assert.equal(h.scope.dirty, false); assert.equal(h.sent.length, 0);
     h.edit('kp', 110); h.scope.savePid(); h.scope.discardPid();
     assert.equal(h.scope.draft.kp, 110); assert.equal(h.scope.pending, true);
@@ -189,6 +195,57 @@ test('destroy removes the watcher and any outstanding timeout', () => {
     h.destroy();
     assert.equal(h.unwatched, true); assert.equal(h.timers.size, 0);
     h.advance(5000); assert.equal(h.sent.length, 1);
+});
+
+test('old feedback without a window initializes the ten-sample default', () => {
+    const h = harness();
+    h.raw({topic: 'cruise_pid_state', payload: {pid: {kp: 80, ki: 4, kd: 12}, ok: true}});
+    assert.equal(h.scope.ready, true);
+    assert.deepEqual(plain(h.scope.draft), settings({kp: 80, ki: 4, kd: 12}));
+    assert.equal(h.sent.length, 0);
+});
+
+test('invalid window feedback is rejected rather than silently replaced', () => {
+    for (const bad of [null, undefined, '10', 0, -1, 101, 10.5, NaN, Infinity]) {
+        const h = harness();
+        h.reply(initial, {sogWindowSize: bad});
+        assert.equal(h.scope.ready, false, `unexpected initial window: ${bad}`);
+        h.reply();
+        h.reply({kp: 90, ki: 4, kd: 12}, {sogWindowSize: bad});
+        assert.deepEqual(plain(h.scope.applied), initial, `overwrote applied state: ${bad}`);
+        assert.equal(h.sent.length, 0);
+    }
+});
+
+test('window edits submit only valid whole sample counts and preserve gain values', () => {
+    for (const bad of [null, undefined, '20', 0, -1, 101, 1.5, NaN, Infinity]) {
+        const h = harness(); h.reply(); h.edit('sogWindowSize', bad); h.scope.savePid();
+        assert.equal(h.sent.length, 0, `sent invalid window: ${bad}`);
+        assert.equal(h.scope.messageKind, 'error');
+    }
+    for (const count of [1, 20, 100]) {
+        const h = harness(); h.reply(); h.edit('sogWindowSize', count);
+        assert.equal(h.sent.length, 0);
+        h.scope.savePid();
+        assert.deepEqual(h.sent[0].payload, settings({kp: 100, ki: 5, kd: 10}, count));
+        h.reply(h.sent[0].payload, {requestId: h.sent[0].requestId});
+        assert.equal(h.scope.pending, false); assert.equal(h.scope.dirty, false);
+        assert.equal(h.scope.applied.sogWindowSize, count);
+        assert.equal(h.scope.draft.sogWindowSize, count);
+    }
+});
+
+test('other browser window changes sync clean fields but do not replace window drafts', () => {
+    const h = harness(); h.reply(); h.reply(initial, {sogWindowSize: 25, requestId: 'other'});
+    assert.equal(h.scope.applied.sogWindowSize, 25); assert.equal(h.scope.draft.sogWindowSize, 25);
+    assert.equal(h.scope.dirty, false);
+    h.edit('sogWindowSize', 15);
+    h.reply(initial, {sogWindowSize: 30, requestId: 'other'});
+    assert.equal(h.scope.applied.sogWindowSize, 30); assert.equal(h.scope.draft.sogWindowSize, 15);
+    assert.equal(h.scope.dirty, true);
+    h.scope.discardPid();
+    assert.equal(h.scope.draft.sogWindowSize, 30); assert.equal(h.scope.dirty, false);
+    assert.equal(h.sent.length, 0);
 });
 
 console.log('\n' + passed + ' Dashboard PID settings tests passed');

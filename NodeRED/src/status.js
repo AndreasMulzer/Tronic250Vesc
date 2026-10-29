@@ -122,6 +122,9 @@ if (object(cruise)) {
     add("controller.cruise.targetSpeed", numeric(cruise.targetKn) ? cruise.targetKn * 1852 / 3600 : undefined);
     const sogFresh = fresh(cruise.sogTimestampMs, 3000) && fresh(cruise.sogReceivedMs, 3000);
     add("controller.cruise.sog", sogFresh && numeric(cruise.sogKn) ? cruise.sogKn * 1852 / 3600 : null, true);
+    add("controller.cruise.sogFiltered", sogFresh && numeric(cruise.filteredKn) ? cruise.filteredKn * 1852 / 3600 : null, true);
+    add("controller.cruise.sogWindowSize", numeric(cruise.sogWindowSize) ? cruise.sogWindowSize : undefined);
+    add("controller.cruise.sogSampleCount", sogFresh && Array.isArray(cruise.sogSamplesKn) ? cruise.sogSamplesKn.length : 0);
     for (const [suffix, key] of [["output", "outputPercent"], ["p", "pTerm"], ["i", "integral"], ["d", "dTerm"]])
         add(`controller.cruise.${suffix}`, numeric(cruise[key]) ? cruise[key] / 100 : undefined);
     add("controller.cruise.reason", typeof cruise.reason === "string" ? cruise.reason : undefined);
@@ -141,7 +144,11 @@ for (const [path, label, units] of [
     ["controller.commandPercent", "Zuletzt gesendeter Drehzahlsollwert", "ratio"],
     ["controller.lastCommandTime", "Zeit des letzten Steuerbefehls"], ["controller.controlStatus", "Antriebsstatus"],
     ["controller.cruise.enabled", "Tempomat eingeschaltet"], ["controller.cruise.targetSpeed", "Tempomat-Sollgeschwindigkeit", "m/s"],
-    ["controller.cruise.sog", "Tempomat-SOG", "m/s"], ["controller.cruise.output", "Tempomat-Ausgang", "ratio"],
+    ["controller.cruise.sog", "Tempomat-SOG roh", "m/s"],
+    ["controller.cruise.sogFiltered", "Tempomat-SOG Mittelwert", "m/s"],
+    ["controller.cruise.sogWindowSize", "SOG-Mittelwert Fenstergröße"],
+    ["controller.cruise.sogSampleCount", "SOG-Mittelwert gültige Messwerte"],
+    ["controller.cruise.output", "Tempomat-Ausgang", "ratio"],
     ["controller.cruise.p", "PID-P-Anteil", "ratio"], ["controller.cruise.i", "PID-I-Anteil", "ratio"],
     ["controller.cruise.d", "PID-D-Anteil", "ratio"], ["controller.cruise.reason", "Tempomat-Status"]
 ]) metadata(path, label, units);

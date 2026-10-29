@@ -17,6 +17,13 @@
                ng-model="draft.kd" ng-change="markPidDirty()" ng-disabled="!ready || pending" required>
       </md-input-container>
     </div>
+    <div layout="row">
+      <md-input-container flex="100">
+        <label>SOG-Mittelwert [Werte]</label>
+        <input aria-label="SOG-Mittelwert" type="number" step="1" min="1" max="100"
+               ng-model="draft.sogWindowSize" ng-change="markPidDirty()" ng-disabled="!ready || pending" required>
+      </md-input-container>
+    </div>
     <div layout="row" layout-wrap>
       <md-button class="md-raised md-primary" type="button" ng-click="savePid()"
                  ng-disabled="!ready || pending || !dirty || vescPidForm.$invalid">
@@ -28,7 +35,7 @@
     </div>
   </form>
   <div class="vesc-pid-applied" ng-if="ready">
-    Aktiv: Kp {{applied.kp}} · Ki {{applied.ki}} · Kd {{applied.kd}}
+    Aktiv: Kp {{applied.kp}} · Ki {{applied.ki}} · Kd {{applied.kd}} · SOG-Mittelwert {{applied.sogWindowSize}} Werte
   </div>
   <div class="vesc-pid-note">% bezeichnet Prozentpunkte des Drehzahlsollwerts.</div>
   <div class="vesc-pid-message" ng-class="{'vesc-pid-error': messageKind === 'error'}" aria-live="polite">
@@ -44,8 +51,8 @@
 </style>
 <script>
 (function (scope) {
-    var fields = ['kp', 'ki', 'kd'];
-    var limits = {kp: 10000, ki: 1000, kd: 10000};
+    var fields = ['kp', 'ki', 'kd', 'sogWindowSize'];
+    var limits = {kp: 10000, ki: 1000, kd: 10000, sogWindowSize: 100};
     var client = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
     var sequence = 0, pendingId = null, timeout = null;
     scope.ready = false;
@@ -56,12 +63,14 @@
     scope.draft = {};
     scope.applied = {};
 
-    function copy(pid) {
-        return {kp: pid.kp, ki: pid.ki, kd: pid.kd};
+    function copy(values) {
+        return {kp: values.kp, ki: values.ki, kd: values.kd, sogWindowSize: values.sogWindowSize};
     }
-    function valid(pid) {
-        return pid && fields.every(function (key) {
-            return typeof pid[key] === 'number' && isFinite(pid[key]) && pid[key] >= 0 && pid[key] <= limits[key];
+    function valid(values) {
+        return values && fields.every(function (key) {
+            var value = values[key];
+            return typeof value === 'number' && isFinite(value) && value >= (key === 'sogWindowSize' ? 1 : 0) &&
+                value <= limits[key] && (key !== 'sogWindowSize' || Math.floor(value) === value);
         });
     }
     function updateDirty() {
@@ -89,7 +98,7 @@
         if (!scope.ready || scope.pending || !scope.dirty) return;
         if (!valid(scope.draft)) {
             scope.messageKind = 'error';
-            scope.message = 'Bitte gültige, nichtnegative Werte innerhalb der Feldgrenzen eingeben.';
+            scope.message = 'Bitte gültige Reglerwerte und 1 bis 100 ganze Werte für den SOG-Mittelwert eingeben.';
             return;
         }
         var requestId = client + '-' + (++sequence);
@@ -114,11 +123,14 @@
         }
     };
     var unwatch = scope.$watch('msg', function (msg) {
-        if (!msg || msg.topic !== 'cruise_pid_state' || !msg.payload || !valid(msg.payload.pid)) return;
+        if (!msg || msg.topic !== 'cruise_pid_state' || !msg.payload || !msg.payload.pid) return;
         var response = msg.payload;
+        var values = {kp: response.pid.kp, ki: response.pid.ki, kd: response.pid.kd,
+            sogWindowSize: Object.prototype.hasOwnProperty.call(response, 'sogWindowSize') ? response.sogWindowSize : 10};
+        if (!valid(values)) return;
         var ownReply = pendingId !== null && response.requestId === pendingId;
         var preserveDraft = scope.ready && (scope.dirty || scope.pending);
-        scope.applied = copy(response.pid);
+        scope.applied = copy(values);
         if (!scope.ready) {
             scope.draft = copy(scope.applied);
             scope.ready = true;

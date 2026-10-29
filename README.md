@@ -21,6 +21,7 @@ Voraussetzungen, Signal-K-Pfade, Parameter und die Grenzen der lokalen Prüfung.
 
 - Manueller Drehzahlsollwert vorwärts/rückwärts und ein reiner PID-Tempomat für **0–4 kn**.
 - **Motor → Reglerparameter**: Kp, Ki und Kd im Dashboard bearbeiten, übernehmen und dauerhaft speichern.
+- SOG als gleitender Mittelwert über **10 GPS-Messwerte**, Fenstergröße im Dashboard einstellbar.
 - **STOP (HARD)** bremst über `set-brake-rel 1.0` im 50-Hz-Motorloop innerhalb der Firmwarelimits.
 - Potiübernahme nach **100 mV / 100 ms**; PID-Folgebefehle können die Kontrolle danach nicht zurückholen.
 - VESC-Rückmeldung der tatsächlichen Quelle **Poti/WiFi** und des angewendeten Modus.
@@ -47,6 +48,7 @@ node tests/test-tempomat.js
 node tests/test-status.js
 node tests/test-pid-settings.js
 node tests/test-pid-settings-ui.js
+node tests/test-sog-average.js
 ```
 
 Die LispBM-Verhaltensprüfung benötigt zusätzlich den Host-Test-Runner aus
@@ -57,7 +59,7 @@ python3 tests/test-tronic250r-lisp.py /pfad/zu/test_lisp_code_cps.exe
 ```
 
 Lokal bestanden: **45 Flow-/Protokolltests**, **24 Status-Tests**,
-**17 Parameter-Tests**, **14 Parameter-UI-Tests** und
+**17 Parameter-Tests**, **18 Parameter-UI-Tests**, **24 SOG-Mittelwert-Tests** und
 **25 LispBM-Prüfungen** mit ersetzten Motor-/Transportfunktionen.
 Diese Tests belegen keine Installation oder Bremswirkung auf Hardware.
 
